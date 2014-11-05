@@ -1,0 +1,188 @@
+#!/usr/bin/env ruby
+
+require 'fileutils'
+require 'tmpdir'
+
+trap :INT, :EXIT
+
+SCRIPT_DIR = File.dirname(__FILE__)
+OUT_DIR = SCRIPT_DIR + '/Out'
+
+VERBOSE = true
+
+VBOX_MANAGE = '/usr/bin/VBoxManage'
+LVM = 'sudo /sbin/lvm'
+MOUNT = 'sudo mount'
+UMOUNT = 'sudo umount'
+
+require_relative 'failure_helpers'
+require_relative 'virtual_machine'
+require_relative 'virtual_hard_disk'
+
+class VirtualMachineBackup
+  include FailureHelpers
+
+  def initialize(vm)
+    @vm = vm
+  end
+
+  def go!
+    hdds = @vm.hard_disks_and_ancestors
+    backup_config(exclude: hdds.map(&:path))
+    backup_hard_disks(hdds)
+  rescue ProcessingError => e
+    name = @vm.to_s  rescue @vm.uuid
+    STDERR.puts "ERROR: #{name}: #{e.message}"
+  ensure
+    puts  if VERBOSE
+  end
+
+  private
+
+  def say(message)
+    puts message  if VERBOSE
+  end
+
+  def out_dir
+    File.join(OUT_DIR, @vm.name)
+  end
+
+  def backup_config(options = {})
+    exclude_files = options.fetch(:exclude, [])
+    backup_dir = File.dirname(@vm.config_file)
+    out_file = File.join(out_dir(), 'config.tar.gz')
+    FileUtils.mkdir_p(File.dirname(out_file))
+    say "== Backing up #{@vm.name} Config"
+    unless exclude_files.empty?
+      exclude = exclude_files.select {|file|
+        file.start_with?(backup_dir)
+      }.map {|file|
+        %(--exclude "#{file[(backup_dir.length + 1)..-1]}")
+      }.join(' ')
+    end
+    v = VERBOSE ? 'v' : ''
+    cmd = %(tar c#{v}z -C "#{backup_dir}" #{exclude} . > "#{out_file}")
+    say "# #{cmd}"
+    pid = Process.spawn(cmd)
+    Process.wait(pid)
+    if $?.exitstatus != 0
+      fail "Failed to back up config"
+    end
+  end
+
+  def backup_hard_disks(hdds)
+    hdds_by_mountpoint = hdds.group_by {|hdd|
+      mountpoint = `stat -c "%m" "#{hdd.path}"`.chomp.strip
+      if $?.exitstatus != 0 || mountpoint.empty?
+        fail "Unable to determine mountpoint for #{hdd.path}"
+      end
+      mountpoint
+    }
+    # Create snapshots of the underlying LV for each mountpoint
+    snapshot_lv_by_mountpoint = Hash.new
+    whilst_paused do
+      hdds_by_mountpoint.keys.each do |mountpoint|
+        lvm_lv = lvm_lv_for_mountpoint(mountpoint)
+        snapshot_lv_by_mountpoint[mountpoint] = create_snapshot_of(lvm_lv)
+      end
+    end
+    # Backup the hard disks from each mountpoint using its LVM snapshot
+    hdds_by_mountpoint.keys.each do |mountpoint|
+      snapshot_lv = snapshot_lv_by_mountpoint[mountpoint]
+      with_mounted_lv(snapshot_lv) do |snapshot_mountpoint|
+        hdds_by_mountpoint[mountpoint].each do |hdd|
+          relative_hdd_path = hdd.path[(mountpoint.length + 1)..-1]
+          snapshot_hdd_path = File.join(snapshot_mountpoint, relative_hdd_path)
+          backup_hard_disk_file(snapshot_hdd_path)
+        end
+      end
+    end
+  ensure
+    snapshot_lv_by_mountpoint.values.each do |snapshot_lv|
+      remove_snapshot(snapshot_lv)
+    end
+  end
+
+  def backup_hard_disk_file(hdd_path)
+    out_file = File.join(out_dir(), 'HDDs', File.basename(hdd_path) + '.gz')
+    FileUtils.mkdir_p(File.dirname(out_file))
+    source_cmd = VERBOSE ? %(pv "#{hdd_path}") : %(cat "#{hdd_path}")
+    cmd = %(#{source_cmd} | gzip > "#{out_file}")
+    say "== Backing up #{@vm.name} HDD #{File.basename(hdd_path)}"
+    pid = Process.spawn(cmd)
+    Process.wait(pid)
+    if $?.exitstatus != 0
+      fail "Failed to back up HDD: #{hdd_path}"
+    end
+  end
+
+  def with_mounted_lv(lvm_lv)
+    Dir.mktmpdir {|dir|
+      say "== Mounting #{lvm_lv} on #{dir}"
+      `#{MOUNT} /dev/#{lvm_lv} #{dir} > /dev/null`
+      if $?.exitstatus != 0
+        fail "Failed to mount snapshot #{lvm_lv} on #{dir}"
+      end
+      begin
+        yield dir
+      ensure
+        say "== Unmounting #{lvm_lv} from #{dir}"
+        `#{UMOUNT} /dev/#{lvm_lv} > /dev/null`
+        if $?.exitstatus != 0
+          fail "Failed to unmount snapshot #{lvm_lv} from #{dir}"
+        end
+      end
+    }
+  end
+
+  def create_snapshot_of(lvm_lv)
+    say "== Creating snapshot of #{lvm_lv}"
+    snapshot_lv = lvm_lv + '-backup'
+    cmd = "#{LVM} lvcreate -L10G --snapshot " +
+          "--name #{File.basename(snapshot_lv)} #{lvm_lv} > /dev/null"
+    pid = Process.spawn(cmd)
+    Process.wait(pid)
+    if $?.exitstatus != 0
+      fail "Failed to create snapshot of #{lvm_lv}"
+    end
+    snapshot_lv
+  end
+
+  def remove_snapshot(snapshot_lv)
+    say "== Removing #{snapshot_lv}"
+    cmd = "#{LVM} lvremove -f #{snapshot_lv} > /dev/null"
+    pid = Process.spawn(cmd)
+    Process.wait(pid)
+    if $?.exitstatus != 0
+      fail "Failed to remove snapshot #{snapshot_lv}"
+    end
+  end
+
+  def lvm_lv_for_mountpoint(mountpoint)
+    device = `egrep "\s#{mountpoint}\s" /proc/self/mounts`.split.first
+    if device.empty? || $?.exitstatus != 0
+      fail "Unable to determine LVM name for mountpoint: #{mountpoint}"
+    end
+    File.basename(device).sub(/(?<!-)-(?!-)/, '/')
+  end
+
+  def whilst_paused(&block)
+    if @vm.state == 'running'
+      say "== Pausing: #{@vm}"
+      @vm.save!
+      begin
+        yield
+      ensure
+        say "== Resuming: #{@vm}"
+        @vm.start!
+      end
+    else
+      yield
+    end
+  end
+end
+
+VirtualMachine.all.each do |vm|
+  VirtualMachineBackup.new(vm).go!
+  break
+end
