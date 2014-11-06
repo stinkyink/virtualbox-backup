@@ -3,6 +3,9 @@
 require 'fileutils'
 require 'tmpdir'
 
+require 'bundler/setup'
+require 'fog'
+
 trap :INT, :EXIT
 
 SCRIPT_DIR = File.dirname(__FILE__)
@@ -15,6 +18,13 @@ LVM = 'sudo /sbin/lvm'
 MOUNT = 'sudo mount'
 UMOUNT = 'sudo umount'
 
+ENCRYPTION_KEY = ''
+AWS_ACCESS_KEY = ''
+AWS_SECRET_KEY = ''
+AWS_REGION = 'eu-west-1'
+GLACIER_VAULT = 'StinkyBackups'
+GLACIER_UPLOAD_CHUNK_SIZE = 64 * 1024 * 1024
+
 require_relative 'failure_helpers'
 require_relative 'virtual_machine'
 require_relative 'virtual_hard_disk'
@@ -26,7 +36,7 @@ class VirtualMachineBackup
     @vm = vm
   end
 
-  def go!
+  def do_backup!
     hdds = @vm.hard_disks_and_ancestors
     backup_config(exclude: hdds.map(&:path))
     backup_hard_disks(hdds)
@@ -37,6 +47,12 @@ class VirtualMachineBackup
     puts  if VERBOSE
   end
 
+  def push_offsite!
+    push_to_amazon()
+  rescue ProcessingError => e
+    STDERR.puts "ERROR: #{@vm}: #{e.message}"
+  end
+
   private
 
   def say(message)
@@ -45,6 +61,63 @@ class VirtualMachineBackup
 
   def out_dir
     File.join(OUT_DIR, @vm.name)
+  end
+
+  def push_to_amazon
+    say "== Pushing #{@vm.name} backup to Amazon"
+    source_dir = out_dir
+    tar_cmd = %(tar c "#{source_dir}")
+    if VERBOSE
+      pv_cmd = "pv -s #{directory_size(source_dir)}"
+    end
+    IO.pipe do |passphrase_out, passphrase_in|
+      passphrase_in.puts(ENCRYPTION_KEY)
+      passphrase_in.close
+      gpg_cmd =
+        'gpg --batch --symmetric --compress-algo none --cipher-algo AES256 ' +
+        "--passphrase-file /proc/#{Process.pid}/fd/#{passphrase_out.to_i}"
+      cmd = [tar_cmd, pv_cmd, gpg_cmd].compact.join(' | ')
+      say "# #{cmd}"
+      IO.pipe do |data_out, data_in|
+        pid = Process.spawn(cmd, out: data_in)
+        data_in.close
+        push_io_into_glacier_archive(data_out)
+        # push_io_into_fake_sink(data_out)
+        Process.wait(pid)
+        if $?.exitstatus != 0
+          fail 'Failed to push to Amazon'
+        end
+      end
+    end
+  end
+
+  def push_io_into_fake_sink(io_in)
+    bytes = 0
+    while true do
+      buffer = io_in.read(GLACIER_UPLOAD_CHUNK_SIZE)
+      break  if buffer.nil?
+      bytes += buffer.length
+    end
+    puts "#{bytes} bytes read"
+  end
+
+  def push_io_into_glacier_archive(io_in)
+    # patch io so that #rewind is a null-op, as Fog attempts to rewind it
+    def io_in.rewind
+    end
+    description = Time.now.strftime("%Y-%m-%d %H:%M") + " - #{@vm}"
+    glacier =
+      Fog::AWS::Glacier.new(aws_access_key_id: AWS_ACCESS_KEY,
+                            aws_secret_access_key: AWS_SECRET_KEY,
+                            region: AWS_REGION)
+    vault = glacier.vaults.get(GLACIER_VAULT)
+    archive =
+      vault.archives.
+        create(description: description,
+               body: io_in,
+               multipart_chunk_size: GLACIER_UPLOAD_CHUNK_SIZE)
+    say "Glacier archive: #{description}"
+    say "Glacier archive ID: #{archive.id}"
   end
 
   def backup_config(options = {})
@@ -66,7 +139,7 @@ class VirtualMachineBackup
     pid = Process.spawn(cmd)
     Process.wait(pid)
     if $?.exitstatus != 0
-      fail "Failed to back up config"
+      fail 'Failed to back up config'
     end
   end
 
@@ -180,9 +253,16 @@ class VirtualMachineBackup
       yield
     end
   end
+
+  def directory_size(path)
+    out = `du -sb "#{path}"`
+    if $?.exitstatus != 0
+      fail "Unable to determine size of directory: #{path}"
+    end
+    out.split.first
+  end
 end
 
-VirtualMachine.all.each do |vm|
-  VirtualMachineBackup.new(vm).go!
-  break
-end
+[VirtualMachine.all.first].map {|vm|
+  VirtualMachineBackup.new(vm).tap(&:do_backup!)
+}.each(&:push_offsite!)
