@@ -3,19 +3,6 @@ class VirtualHardDisk
 
   attr_reader :uuid
 
-  # def self.all
-  #   hdds = Array.new
-  #   buffer = Array.new
-  #   `VBoxManage list hdds`.split("\n").each do |line|
-  #     if line.empty?
-  #       buffer = Array.new
-  #     else
-  #       buffer << line
-  #     end
-  #   end
-  #   hdds
-  # end
-
   def initialize(uuid)
     @uuid = uuid
   end
