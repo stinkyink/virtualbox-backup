@@ -1,5 +1,6 @@
 #!/usr/bin/env ruby
 
+require 'csv'
 require 'fileutils'
 require 'tmpdir'
 
@@ -9,21 +10,18 @@ require 'fog'
 trap :INT, :EXIT
 
 SCRIPT_DIR = File.dirname(__FILE__)
+CONFIG_FILE = SCRIPT_DIR + '/config.yaml'
+LOG_FILE = SCRIPT_DIR + '/archives.log'
 OUT_DIR = SCRIPT_DIR + '/Out'
 
-VERBOSE = true
+CONFIG = YAML.load_file(CONFIG_FILE)
+
+VERBOSE = CONFIG['verbose']
 
 VBOX_MANAGE = '/usr/bin/VBoxManage'
 LVM = 'sudo /sbin/lvm'
 MOUNT = 'sudo mount'
 UMOUNT = 'sudo umount'
-
-ENCRYPTION_KEY = ''
-AWS_ACCESS_KEY = ''
-AWS_SECRET_KEY = ''
-AWS_REGION = 'eu-west-1'
-GLACIER_VAULT = 'StinkyBackups'
-GLACIER_UPLOAD_CHUNK_SIZE = 64 * 1024 * 1024
 
 require_relative 'failure_helpers'
 require_relative 'virtual_machine'
@@ -71,7 +69,7 @@ class VirtualMachineBackup
       pv_cmd = "pv -s #{directory_size(source_dir)}"
     end
     IO.pipe do |passphrase_out, passphrase_in|
-      passphrase_in.puts(ENCRYPTION_KEY)
+      passphrase_in.puts(CONFIG['encryption']['key'])
       passphrase_in.close
       gpg_cmd =
         'gpg --batch --symmetric --compress-algo none --cipher-algo AES256 ' +
@@ -94,7 +92,7 @@ class VirtualMachineBackup
   def push_io_into_fake_sink(io_in)
     bytes = 0
     while true do
-      buffer = io_in.read(GLACIER_UPLOAD_CHUNK_SIZE)
+      buffer = io_in.read(CONFIG['aws']['glacier']['upload_chunk_size'])
       break  if buffer.nil?
       bytes += buffer.length
     end
@@ -107,17 +105,21 @@ class VirtualMachineBackup
     end
     description = Time.now.strftime("%Y-%m-%d %H:%M") + " - #{@vm}"
     glacier =
-      Fog::AWS::Glacier.new(aws_access_key_id: AWS_ACCESS_KEY,
-                            aws_secret_access_key: AWS_SECRET_KEY,
-                            region: AWS_REGION)
-    vault = glacier.vaults.get(GLACIER_VAULT)
+      Fog::AWS::Glacier.new(aws_access_key_id: CONFIG['aws']['access_key'],
+                            aws_secret_access_key: CONFIG['aws']['secret_key'],
+                            region: CONFIG['aws']['region'])
+    vault = glacier.vaults.get(CONFIG['aws']['glacier']['vault'])
     archive =
       vault.archives.
         create(description: description,
                body: io_in,
-               multipart_chunk_size: GLACIER_UPLOAD_CHUNK_SIZE)
+               multipart_chunk_size:
+                 CONFIG['aws']['glacier']['upload_chunk_size'])
     say "Glacier archive: #{description}"
     say "Glacier archive ID: #{archive.id}"
+    CSV.open(LOG_FILE, 'a') do |log_out|
+      log_out << [description, archive.id]
+    end
   end
 
   def backup_config(options = {})
