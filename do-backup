@@ -263,6 +263,6 @@ class VirtualMachineBackup
   end
 end
 
-[VirtualMachine.all.first].map {|vm|
+VirtualMachine.all.map {|vm|
   VirtualMachineBackup.new(vm).tap(&:do_backup!)
 }.each(&:push_offsite!)
