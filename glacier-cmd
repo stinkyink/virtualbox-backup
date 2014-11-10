@@ -1,0 +1,114 @@
+#!/usr/bin/env ruby
+
+require 'bundler/setup'
+require 'fog'
+
+trap :INT, :EXIT
+
+SCRIPT_DIR = File.dirname(__FILE__)
+CONFIG_FILE = SCRIPT_DIR + '/config.yaml'
+
+CONFIG = YAML.load_file(CONFIG_FILE)
+
+def print_usage_and_exit!
+  puts <<-END
+Usage:
+  #{File.basename(__FILE__)} jobs|archives|(download <archive-id>)
+  END
+  exit!
+end
+
+class GlacierCommand
+  def initialize
+    glacier =
+      Fog::AWS::Glacier.new(aws_access_key_id: CONFIG['aws']['access_key'],
+                            aws_secret_access_key: CONFIG['aws']['secret_key'],
+                            region: CONFIG['aws']['region'])
+    @vault = glacier.vaults.get(CONFIG['aws']['glacier']['vault'])
+  end
+
+  def list_jobs(args)
+    print_usage_and_exit!  if not args.empty?
+    puts "== Jobs"
+    pp @vault.jobs.to_a
+  end
+
+  def list_archives(args)
+    print_usage_and_exit!  if not args.empty?
+    inventory_job =
+      @vault.jobs.select {|x| x.action == 'InventoryRetrieval' }.
+      sort_by {|x| x.completed_at }.last
+    if inventory_job.nil?
+      puts '== Creating Archive Inventory Job'
+      pp @vault.jobs.create(type: Fog::AWS::Glacier::Job::INVENTORY)
+      puts 'NOTE: When the job is complete, run this command again to list ' +
+           'the archives.'
+    else
+      puts '== Archive Inventory'
+      pp inventory_job.get_output.body
+    end
+  end
+
+  def download(args)
+    print_usage_and_exit!  if not args.count == 1
+    archive_job =
+      @vault.jobs.select {|x|
+        x.action == 'ArchiveRetrieval' && x.archive_id == args.first
+      }.sort_by {|x| x.completed_at }.last
+    if archive_job.nil?
+      STDERR.write 'Create archive retrieval job? (This costs money!) [y/N]: '
+      if not STDIN.gets.chomp.strip.downcase == 'y'
+        STDERR.puts 'No action was taken.'
+        return
+      end
+      puts '== Creating Archive Retrieval Job'
+      archive_job = @vault.jobs.create(type: Fog::AWS::Glacier::Job::ARCHIVE,
+                                       archive_id: args.first)
+    elsif not archive_job.ready?
+      puts '== Archive Retrieval Job in progress'
+    end
+    if not archive_job.ready?
+      pp archive_job
+      puts 'NOTE: When the job is complete, run this command again to ' +
+           'download the file.'
+    else
+      puts "== Downloading Archive"
+      file_path = File.join(SCRIPT_DIR, archive_job.archive_id)
+      pv_cmd = %(pv -s #{archive_job.archive_size})
+      IO.pipe do |passphrase_out, passphrase_in|
+        passphrase_in.puts(CONFIG['encryption']['key'])
+        passphrase_in.close
+        gpg_cmd =
+          'gpg --batch --decrypt ' +
+          "--passphrase-file /proc/#{Process.pid}/fd/#{passphrase_out.to_i}"
+        cmd = [pv_cmd, gpg_cmd].join(' | ') + %( > "#{file_path}")
+        puts "# #{cmd}"
+        IO.pipe do |data_out, data_in|
+          pid = Process.spawn(cmd, in: data_out)
+          data_out.close
+          archive_job.get_output(io: data_in)
+          data_in.close
+          Process.wait(pid)
+          if $?.exitstatus != 0
+            STDERR.puts 'ERROR: Failed to download archive.'
+          end
+        end
+      end
+    end
+  end
+end
+
+command = ARGV.first
+args = ARGV[1..-1]
+
+glacier_cmd = GlacierCommand.new
+case command
+when 'jobs'
+  glacier_cmd.list_jobs(args)
+when 'archives'
+  glacier_cmd.list_archives(args)
+when 'download'
+  glacier_cmd.download(args)
+else
+  print_usage_and_exit!
+end
