@@ -32,6 +32,7 @@ class VirtualMachineBackup
 
   def initialize(vm)
     @vm = vm
+    @backup_time = Time.now
   end
 
   def do_backup!
@@ -58,13 +59,14 @@ class VirtualMachineBackup
   end
 
   def out_dir
-    File.join(OUT_DIR, @vm.name)
+    File.join(OUT_DIR, @backup_time.strftime('%Y-%m-%d'), @vm.name)
   end
 
   def push_to_amazon
     say "== Pushing #{@vm.name} backup to Amazon"
     source_dir = out_dir
-    tar_cmd = %(tar c "#{source_dir}")
+    tar_cmd = %(tar c -C "#{File.dirname(source_dir)}" ) +
+              %("#{File.basename(source_dir)}")
     if VERBOSE
       pv_cmd = "pv -s #{directory_size(source_dir)}"
     end
@@ -80,7 +82,7 @@ class VirtualMachineBackup
         pid = Process.spawn(cmd, out: data_in)
         data_in.close
         push_io_into_glacier_archive(data_out)
-        # push_io_into_fake_sink(data_out)
+        # push_io_into_test_file(data_out)
         Process.wait(pid)
         if $?.exitstatus != 0
           fail 'Failed to push to Amazon'
@@ -89,21 +91,21 @@ class VirtualMachineBackup
     end
   end
 
-  def push_io_into_fake_sink(io_in)
-    bytes = 0
+  def push_io_into_test_file(io_in)
+    io_out = File.open(File.join(SCRIPT_DIR, 'test.out'), 'w')
     while true do
       buffer = io_in.read(CONFIG['aws']['glacier']['upload_chunk_size'])
       break  if buffer.nil?
-      bytes += buffer.length
+      io_out.write(buffer)
     end
-    puts "#{bytes} bytes read"
+    io_out.close
   end
 
   def push_io_into_glacier_archive(io_in)
     # patch io so that #rewind is a null-op, as Fog attempts to rewind it
     def io_in.rewind
     end
-    description = Time.now.strftime("%Y-%m-%d %H:%M") + " - #{@vm}"
+    description = @backup_time.strftime("%Y-%m-%d_%H:%M") + " #{@vm}"
     glacier =
       Fog::AWS::Glacier.new(aws_access_key_id: CONFIG['aws']['access_key'],
                             aws_secret_access_key: CONFIG['aws']['secret_key'],
@@ -136,7 +138,8 @@ class VirtualMachineBackup
       }.join(' ')
     end
     v = VERBOSE ? 'v' : ''
-    cmd = %(tar c#{v}z -C "#{backup_dir}" #{exclude} . > "#{out_file}")
+    cmd = %(tar c#{v}z -C "#{File.dirname(backup_dir)}" #{exclude} ) +
+          %("#{File.basename(backup_dir)}" > "#{out_file}")
     say "# #{cmd}"
     pid = Process.spawn(cmd)
     Process.wait(pid)
@@ -147,11 +150,11 @@ class VirtualMachineBackup
 
   def backup_hard_disks(hdds)
     hdds_by_mountpoint = hdds.group_by {|hdd|
-      mountpoint = `stat -c "%m" "#{hdd.path}"`.chomp.strip
-      if $?.exitstatus != 0 || mountpoint.empty?
-        fail "Unable to determine mountpoint for #{hdd.path}"
-      end
-      mountpoint
+      `stat -c "%m" "#{hdd.path}"`.chomp.strip.tap {|mountpoint|
+        if $?.exitstatus != 0 || mountpoint.empty?
+          fail "Unable to determine mountpoint for #{hdd.path}"
+        end
+      }
     }
     # Create snapshots of the underlying LV for each mountpoint
     snapshot_lv_by_mountpoint = Hash.new
@@ -265,6 +268,6 @@ class VirtualMachineBackup
   end
 end
 
-VirtualMachine.all.map {|vm|
-  VirtualMachineBackup.new(vm).tap(&:do_backup!)
-}.each(&:push_offsite!)
+backups = VirtualMachine.all.map {|vm| VirtualMachineBackup.new(vm) }
+backups.each(&:do_backup!)
+backups.each(&:push_offsite!)
