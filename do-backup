@@ -33,6 +33,7 @@ class VirtualMachineBackup
   def initialize(vm)
     @vm = vm
     @backup_time = Time.now
+    @error = false
   end
 
   def do_backup!
@@ -42,11 +43,15 @@ class VirtualMachineBackup
   rescue ProcessingError => e
     name = @vm.to_s  rescue @vm.uuid
     STDERR.puts "ERROR: #{name}: #{e.message}"
+    @error = true
   ensure
     puts  if VERBOSE
   end
 
   def push_offsite!
+    if @error
+      fail 'Unable to push offsite due to previous errors.'
+    end
     push_to_amazon()
   rescue ProcessingError => e
     STDERR.puts "ERROR: #{@vm}: #{e.message}"
