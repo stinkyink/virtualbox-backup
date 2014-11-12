@@ -192,6 +192,7 @@ class VirtualMachineBackup
     source_cmd = VERBOSE ? %(pv "#{hdd_path}") : %(cat "#{hdd_path}")
     cmd = %(#{source_cmd} | gzip > "#{out_file}")
     say "== Backing up #{@vm.name} HDD #{File.basename(hdd_path)}"
+    say "# #{cmd}"
     pid = Process.spawn(cmd)
     Process.wait(pid)
     if $?.exitstatus != 0
@@ -223,6 +224,7 @@ class VirtualMachineBackup
     snapshot_lv = lvm_lv + '-backup'
     cmd = "#{LVM} lvcreate -L10G --snapshot " +
           "--name #{File.basename(snapshot_lv)} #{lvm_lv} > /dev/null"
+    say "# #{cmd}"
     pid = Process.spawn(cmd)
     Process.wait(pid)
     if $?.exitstatus != 0
@@ -234,6 +236,7 @@ class VirtualMachineBackup
   def remove_snapshot(snapshot_lv)
     say "== Removing #{snapshot_lv}"
     cmd = "#{LVM} lvremove -f #{snapshot_lv} > /dev/null"
+    say "# #{cmd}"
     pid = Process.spawn(cmd)
     Process.wait(pid)
     if $?.exitstatus != 0
