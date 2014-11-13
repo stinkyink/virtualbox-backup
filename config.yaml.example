@@ -1,4 +1,5 @@
 verbose: true
+pause_vms: true
 encryption:
   key: XXXX
 aws:

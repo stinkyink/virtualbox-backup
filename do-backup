@@ -258,7 +258,7 @@ class VirtualMachineBackup
   end
 
   def whilst_paused(&block)
-    if @vm.state == 'running'
+    if CONFIG['pause_vms'] && @vm.state == 'running'
       say "== Pausing: #{@vm}"
       @vm.save!
       begin
