@@ -245,7 +245,7 @@ class VirtualMachineBackup
   def path_info(path)
     fields = `df -P "#{path}"`.split("\n")[1].split
     device = fields[0]
-    lvm_lv = File.basename(device).sub(/(?<!-)-(?!-)/, '/')
+    lvm_lv = File.basename(device).sub(/(?<!-)-(?!-)/, '/').gsub('--', '-')
     mountpoint = fields.reverse.find {|x| x.start_with?('/') }
     if $?.exitstatus != 0 || [device, lvm_lv, mountpoint].include?(nil)
       fail "Unable to determine mountpoint for #{hdd.path}"
