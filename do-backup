@@ -281,6 +281,10 @@ class VirtualMachineBackup
   end
 end
 
+if not Dir.exists?(OUT_DIR)
+  STDERR.puts "ERROR: Output directory does not exist: #{OUT_DIR}"
+  exit!
+end
 backups = VirtualMachine.all.map {|vm| VirtualMachineBackup.new(vm) }
 backups.each(&:do_backup!)
 backups.each(&:push_offsite!)
