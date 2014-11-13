@@ -154,26 +154,23 @@ class VirtualMachineBackup
   end
 
   def backup_hard_disks(hdds)
-    hdds_by_mountpoint = hdds.group_by {|hdd|
-      `stat -c "%m" "#{hdd.path}"`.chomp.strip.tap {|mountpoint|
-        if $?.exitstatus != 0 || mountpoint.empty?
-          fail "Unable to determine mountpoint for #{hdd.path}"
-        end
-      }
-    }
+    data_by_mountpoint = Hash.new
+    hdds.each do |hdd|
+      info = path_info(hdd.path)
+      data = (data_by_mountpoint[info[:mountpoint]] ||= Hash.new)
+      data[:lvm_lv] = info[:lvm_lv]
+      (data[:hdds] ||= Array.new) << hdd
+    end
     # Create snapshots of the underlying LV for each mountpoint
-    snapshot_lv_by_mountpoint = Hash.new
     whilst_paused do
-      hdds_by_mountpoint.keys.each do |mountpoint|
-        lvm_lv = lvm_lv_for_mountpoint(mountpoint)
-        snapshot_lv_by_mountpoint[mountpoint] = create_snapshot_of(lvm_lv)
+      data_by_mountpoint.each_pair do |mountpoint, data|
+        data[:snapshot_lv] = create_snapshot_of(data[:lvm_lv])
       end
     end
     # Backup the hard disks from each mountpoint using its LVM snapshot
-    hdds_by_mountpoint.keys.each do |mountpoint|
-      snapshot_lv = snapshot_lv_by_mountpoint[mountpoint]
-      with_mounted_lv(snapshot_lv) do |snapshot_mountpoint|
-        hdds_by_mountpoint[mountpoint].each do |hdd|
+    data_by_mountpoint.each_pair do |mountpoint, data|
+      with_mounted_lv(data[:snapshot_lv]) do |snapshot_mountpoint|
+        data[:hdds].each do |hdd|
           relative_hdd_path = hdd.path[(mountpoint.length + 1)..-1]
           snapshot_hdd_path = File.join(snapshot_mountpoint, relative_hdd_path)
           backup_hard_disk_file(snapshot_hdd_path)
@@ -181,9 +178,10 @@ class VirtualMachineBackup
       end
     end
   ensure
-    snapshot_lv_by_mountpoint.values.each do |snapshot_lv|
-      remove_snapshot(snapshot_lv)
-    end
+    data_by_mountpoint.values.map {|x| x[:snapshot_lv] }.
+      reject(&:nil?).reject(&:empty?).each do |snapshot_lv|
+        remove_snapshot(snapshot_lv)
+      end
   end
 
   def backup_hard_disk_file(hdd_path)
@@ -244,12 +242,19 @@ class VirtualMachineBackup
     end
   end
 
-  def lvm_lv_for_mountpoint(mountpoint)
-    device = `egrep "\s#{mountpoint}\s" /proc/self/mounts`.split.first
-    if device.empty? || $?.exitstatus != 0
-      fail "Unable to determine LVM name for mountpoint: #{mountpoint}"
+  def path_info(path)
+    fields = `df -P "#{path}"`.split("\n")[1].split
+    device = fields[0]
+    lvm_lv = File.basename(device).sub(/(?<!-)-(?!-)/, '/')
+    mountpoint = fields.reverse.find {|x| x.start_with?('/') }
+    if $?.exitstatus != 0 || [device, lvm_lv, mountpoint].include?(nil)
+      fail "Unable to determine mountpoint for #{hdd.path}"
     end
-    File.basename(device).sub(/(?<!-)-(?!-)/, '/')
+    {
+      device: device,
+      lvm_lv: lvm_lv,
+      mountpoint: mountpoint
+    }
   end
 
   def whilst_paused(&block)
