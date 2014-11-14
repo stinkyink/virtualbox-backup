@@ -29,6 +29,34 @@ require_relative 'lib/virtual_hard_disk'
 require_relative 'lib/virtual_machine'
 require_relative 'lib/virtual_machine_backup'
 
+def print_usage_and_exit!(code = 1)
+  STDOUT.puts <<-OUT
+Usage: #{File.basename(__FILE__)} [options]
+
+Options:
+  -h
+  --help        Show this help
+  --no-offsite  Don't perform off-site backup
+  OUT
+  exit
+end
+
+$do_offsite = true
+if ARGV.length > 0
+  ARGV.each do |arg|
+    case arg
+    when '-h', '--help'
+      print_usage_and_exit!(0)
+    when '--no-offsite'
+      $do_offsite = false
+    else
+      STDERR.puts "ERROR: Unknown option: #{arg}"
+      STDERR.puts
+      print_usage_and_exit!
+    end
+  end
+end
+
 if not Dir.exists?(OUT_DIR)
   STDERR.puts "ERROR: Output directory does not exist: #{OUT_DIR}"
   exit!
@@ -41,6 +69,7 @@ backups = virtual_machines.map {|vm| VirtualMachineBackup.new(vm) }
 backups.each(&:do_backup!)
 
 # Offsite Backup
+exit  if not $do_offsite
 exclude_offsite_uuids =
   VirtualMachine.find(CONFIG['virtual-machines']['offsite-exclude']).
     map(&:uuid)
