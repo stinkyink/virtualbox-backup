@@ -17,10 +17,11 @@ CONFIG = YAML.load_file(CONFIG_FILE)
 OUT_DIR = CONFIG['local']['out-dir']
 VERBOSE = CONFIG['verbose']
 
-VBOX_MANAGE = CONFIG['local']['vbox-manage']
-LVM = CONFIG['local']['lvm']
-MOUNT = CONFIG['local']['mount']
-UMOUNT = CONFIG['local']['umount']
+COMMANDS = CONFIG['local']['commands']
+VBOX_MANAGE = COMMANDS['vbox-manage']
+LVM = COMMANDS['lvm']
+MOUNT = COMMANDS['mount']
+UMOUNT = COMMANDS['umount']
 
 require_relative 'failure_helpers'
 require_relative 'virtual_machine'
