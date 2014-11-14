@@ -13,8 +13,11 @@ class VirtualMachine
     }
   end
 
-  def initialize(uuid)
-    @uuid = uuid
+  def initialize(vm_name)
+    get_vminfo(vm_name)
+    @uuid = vminfo['UUID']
+  rescue ProcessingError => e
+    fail "Unable to initialize: #{e.message}"
   end
 
   def to_s
@@ -66,17 +69,22 @@ class VirtualMachine
 
   private
 
-  def vminfo
-    @vminfo ||=
-      `#{VBOX_MANAGE} showvminfo --machinereadable #{@uuid}`.split("\n").
-        each_with_object(Hash.new) do |line, acc|
-          split = line.index('=')
-          key = line[0..(split - 1)]
-          value = line[(split + 1)..-1]
-          key, value = [key, value].map {|x|
-            x.start_with?('"') ? x[1..-2] : x
-          }
-          acc[key] = value
-        end
+  attr_accessor :vminfo
+
+  def get_vminfo(vm_name)
+    output = `#{VBOX_MANAGE} showvminfo --machinereadable "#{vm_name}"`
+    if $?.exitstatus != 0
+      fail 'Unable to retrieve info for VM.'
+    end
+    @vminfo =
+      output.split("\n").each_with_object(Hash.new) do |line, acc|
+        split = line.index('=')
+        key = line[0..(split - 1)]
+        value = line[(split + 1)..-1]
+        key, value = [key, value].map {|x|
+          x.start_with?('"') ? x[1..-2] : x
+        }
+        acc[key] = value
+      end
   end
 end

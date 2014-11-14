@@ -1,5 +1,9 @@
 verbose: true
-pause_vms: true
+virtual_machines:
+  pause_for_snapshot: true
+  include:
+    - VM Name or UUID
+    - VM Name or UUID
 local:
   archive-list-file: './archives.csv'
   out-dir: './Out'

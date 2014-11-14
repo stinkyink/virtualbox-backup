@@ -11,9 +11,9 @@ class VirtualMachineBackup
   end
 
   def do_backup!
-    # hdds = @vm.hard_disks_and_ancestors
-    # backup_config(exclude: hdds.map(&:path))
-    # backup_hard_disks(hdds)
+    hdds = @vm.hard_disks_and_ancestors
+    backup_config(exclude: hdds.map(&:path))
+    backup_hard_disks(hdds)
   rescue ProcessingError => e
     name = @vm.to_s  rescue @vm.uuid
     STDERR.puts "ERROR: #{name}: #{e.message}"
@@ -161,7 +161,8 @@ class VirtualMachineBackup
   end
 
   def whilst_paused(&block)
-    if CONFIG['pause_vms'] && @vm.state == 'running'
+    pause_for_snapshot = CONFIG['virtual_machines']['pause-for-snapshot']
+    if pause_for_snapshot && @vm.state == 'running'
       say "== Pausing: #{@vm}"
       @vm.save!
       begin

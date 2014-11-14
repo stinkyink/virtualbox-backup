@@ -34,7 +34,16 @@ if not Dir.exists?(OUT_DIR)
   exit!
 end
 
-virtual_machines = VirtualMachine.all
+virtual_machines =
+  CONFIG['virtual_machines']['include'].map {|vm_name|
+    begin
+      VirtualMachine.new(vm_name)
+    rescue ProcessingError => e
+      STDERR.puts %(WARNING: Unable to find VM "#{vm_name}": #{e.message})
+      STDERR.puts
+      nil
+    end
+  }.compact
 backups = virtual_machines.map {|vm| VirtualMachineBackup.new(vm) }
 
 # Local Backup
