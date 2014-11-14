@@ -23,268 +23,31 @@ LVM = COMMANDS['lvm']
 MOUNT = COMMANDS['mount']
 UMOUNT = COMMANDS['umount']
 
-require_relative 'failure_helpers'
-require_relative 'virtual_machine'
+require_relative 'helpers'
+require_relative 'offsite_backup'
 require_relative 'virtual_hard_disk'
-
-class VirtualMachineBackup
-  include FailureHelpers
-
-  def initialize(vm)
-    @vm = vm
-    @backup_time = Time.now
-    @error = false
-  end
-
-  def do_backup!
-    hdds = @vm.hard_disks_and_ancestors
-    backup_config(exclude: hdds.map(&:path))
-    backup_hard_disks(hdds)
-  rescue ProcessingError => e
-    name = @vm.to_s  rescue @vm.uuid
-    STDERR.puts "ERROR: #{name}: #{e.message}"
-    @error = true
-  ensure
-    puts  if VERBOSE
-  end
-
-  def push_offsite!
-    if @error
-      fail 'Unable to push offsite due to previous errors.'
-    end
-    push_to_amazon()
-  rescue ProcessingError => e
-    STDERR.puts "ERROR: #{@vm}: #{e.message}"
-  end
-
-  private
-
-  def say(message)
-    puts message  if VERBOSE
-  end
-
-  def out_dir
-    File.join(OUT_DIR, @backup_time.strftime('%Y-%m-%d'), @vm.name)
-  end
-
-  def push_to_amazon
-    say "== Pushing #{@vm.name} backup to Amazon"
-    source_dir = out_dir
-    tar_cmd = %(tar c -C "#{File.dirname(source_dir)}" ) +
-              %("#{File.basename(source_dir)}")
-    if VERBOSE
-      pv_cmd = "pv -s #{directory_size(source_dir)}"
-    end
-    IO.pipe do |passphrase_out, passphrase_in|
-      passphrase_in.puts(CONFIG['encryption']['key'])
-      passphrase_in.close
-      gpg_cmd =
-        'gpg --batch --symmetric --compress-algo none --cipher-algo AES256 ' +
-        "--passphrase-file /proc/#{Process.pid}/fd/#{passphrase_out.to_i}"
-      cmd = [tar_cmd, pv_cmd, gpg_cmd].compact.join(' | ')
-      say "# #{cmd}"
-      IO.pipe do |data_out, data_in|
-        pid = Process.spawn(cmd, out: data_in)
-        data_in.close
-        push_io_into_glacier_archive(data_out)
-        # push_io_into_test_file(data_out)
-        Process.wait(pid)
-        if $?.exitstatus != 0
-          fail 'Failed to push to Amazon'
-        end
-      end
-    end
-  end
-
-  def push_io_into_test_file(io_in)
-    io_out = File.open(File.join(SCRIPT_DIR, 'test.out'), 'w')
-    while true do
-      buffer = io_in.read(CONFIG['aws']['glacier']['upload_chunk_size'])
-      break  if buffer.nil?
-      io_out.write(buffer)
-    end
-    io_out.close
-  end
-
-  def push_io_into_glacier_archive(io_in)
-    # patch io so that #rewind is a null-op, as Fog attempts to rewind it
-    def io_in.rewind
-    end
-    description = @backup_time.strftime("%Y-%m-%d_%H:%M") + " #{@vm}"
-    glacier =
-      Fog::AWS::Glacier.new(aws_access_key_id: CONFIG['aws']['access_key'],
-                            aws_secret_access_key: CONFIG['aws']['secret_key'],
-                            region: CONFIG['aws']['region'])
-    vault = glacier.vaults.get(CONFIG['aws']['glacier']['vault'])
-    archive =
-      vault.archives.
-        create(description: description,
-               body: io_in,
-               multipart_chunk_size:
-                 CONFIG['aws']['glacier']['upload_chunk_size'])
-    say "Glacier archive: #{description}"
-    say "Glacier archive ID: #{archive.id}"
-    CSV.open(CONFIG['local']['archive-list-file'], 'a') do |log_out|
-      log_out << [description, archive.id]
-    end
-  end
-
-  def backup_config(options = {})
-    exclude_files = options.fetch(:exclude, [])
-    backup_dir = File.dirname(@vm.config_file)
-    out_file = File.join(out_dir(), 'config.tar.gz')
-    FileUtils.mkdir_p(File.dirname(out_file))
-    say "== Backing up #{@vm.name} Config"
-    unless exclude_files.empty?
-      exclude = exclude_files.select {|file|
-        file.start_with?(backup_dir)
-      }.map {|file|
-        %(--exclude "#{file[(backup_dir.length + 1)..-1]}")
-      }.join(' ')
-    end
-    v = VERBOSE ? 'v' : ''
-    cmd = %(tar c#{v}z -C "#{File.dirname(backup_dir)}" #{exclude} ) +
-          %("#{File.basename(backup_dir)}" > "#{out_file}")
-    say "# #{cmd}"
-    pid = Process.spawn(cmd)
-    Process.wait(pid)
-    if $?.exitstatus != 0
-      fail 'Failed to back up config'
-    end
-  end
-
-  def backup_hard_disks(hdds)
-    data_by_mountpoint = Hash.new
-    hdds.each do |hdd|
-      info = path_info(hdd.path)
-      data = (data_by_mountpoint[info[:mountpoint]] ||= Hash.new)
-      data[:lvm_lv] = info[:lvm_lv]
-      (data[:hdds] ||= Array.new) << hdd
-    end
-    # Create snapshots of the underlying LV for each mountpoint
-    whilst_paused do
-      data_by_mountpoint.each_pair do |mountpoint, data|
-        data[:snapshot_lv] = create_snapshot_of(data[:lvm_lv])
-      end
-    end
-    # Backup the hard disks from each mountpoint using its LVM snapshot
-    data_by_mountpoint.each_pair do |mountpoint, data|
-      with_mounted_lv(data[:snapshot_lv]) do |snapshot_mountpoint|
-        data[:hdds].each do |hdd|
-          relative_hdd_path = hdd.path[(mountpoint.length + 1)..-1]
-          snapshot_hdd_path = File.join(snapshot_mountpoint, relative_hdd_path)
-          backup_hard_disk_file(snapshot_hdd_path)
-        end
-      end
-    end
-  ensure
-    data_by_mountpoint.values.map {|x| x[:snapshot_lv] }.
-      reject(&:nil?).reject(&:empty?).each do |snapshot_lv|
-        remove_snapshot(snapshot_lv)
-      end
-  end
-
-  def backup_hard_disk_file(hdd_path)
-    out_file = File.join(out_dir(), 'HDDs', File.basename(hdd_path) + '.gz')
-    FileUtils.mkdir_p(File.dirname(out_file))
-    source_cmd = VERBOSE ? %(pv "#{hdd_path}") : %(cat "#{hdd_path}")
-    cmd = %(#{source_cmd} | gzip > "#{out_file}")
-    say "== Backing up #{@vm.name} HDD #{File.basename(hdd_path)}"
-    say "# #{cmd}"
-    pid = Process.spawn(cmd)
-    Process.wait(pid)
-    if $?.exitstatus != 0
-      fail "Failed to back up HDD: #{hdd_path}"
-    end
-  end
-
-  def with_mounted_lv(lvm_lv)
-    Dir.mktmpdir {|dir|
-      say "== Mounting #{lvm_lv} on #{dir}"
-      `#{MOUNT} /dev/#{lvm_lv} #{dir} > /dev/null`
-      if $?.exitstatus != 0
-        fail "Failed to mount snapshot #{lvm_lv} on #{dir}"
-      end
-      begin
-        yield dir
-      ensure
-        say "== Unmounting #{lvm_lv} from #{dir}"
-        `#{UMOUNT} /dev/#{lvm_lv} > /dev/null`
-        if $?.exitstatus != 0
-          fail "Failed to unmount snapshot #{lvm_lv} from #{dir}"
-        end
-      end
-    }
-  end
-
-  def create_snapshot_of(lvm_lv)
-    say "== Creating snapshot of #{lvm_lv}"
-    snapshot_lv = lvm_lv + '-backup'
-    cmd = "#{LVM} lvcreate -L10G --snapshot " +
-          "--name #{File.basename(snapshot_lv)} #{lvm_lv} > /dev/null"
-    say "# #{cmd}"
-    pid = Process.spawn(cmd)
-    Process.wait(pid)
-    if $?.exitstatus != 0
-      fail "Failed to create snapshot of #{lvm_lv}"
-    end
-    snapshot_lv
-  end
-
-  def remove_snapshot(snapshot_lv)
-    say "== Removing #{snapshot_lv}"
-    cmd = "#{LVM} lvremove -f #{snapshot_lv} > /dev/null"
-    say "# #{cmd}"
-    pid = Process.spawn(cmd)
-    Process.wait(pid)
-    if $?.exitstatus != 0
-      fail "Failed to remove snapshot #{snapshot_lv}"
-    end
-  end
-
-  def path_info(path)
-    fields = `df -P "#{path}"`.split("\n")[1].split
-    device = fields[0]
-    lvm_lv = File.basename(device).sub(/(?<!-)-(?!-)/, '/').gsub('--', '-')
-    mountpoint = fields.reverse.find {|x| x.start_with?('/') }
-    if $?.exitstatus != 0 || [device, lvm_lv, mountpoint].include?(nil)
-      fail "Unable to determine mountpoint for #{hdd.path}"
-    end
-    {
-      device: device,
-      lvm_lv: lvm_lv,
-      mountpoint: mountpoint
-    }
-  end
-
-  def whilst_paused(&block)
-    if CONFIG['pause_vms'] && @vm.state == 'running'
-      say "== Pausing: #{@vm}"
-      @vm.save!
-      begin
-        yield
-      ensure
-        say "== Resuming: #{@vm}"
-        @vm.start!
-      end
-    else
-      yield
-    end
-  end
-
-  def directory_size(path)
-    out = `du -sb "#{path}"`
-    if $?.exitstatus != 0
-      fail "Unable to determine size of directory: #{path}"
-    end
-    out.split.first
-  end
-end
+require_relative 'virtual_machine'
+require_relative 'virtual_machine_backup'
 
 if not Dir.exists?(OUT_DIR)
   STDERR.puts "ERROR: Output directory does not exist: #{OUT_DIR}"
   exit!
 end
-backups = VirtualMachine.all.map {|vm| VirtualMachineBackup.new(vm) }
+
+virtual_machines = VirtualMachine.all
+backups = virtual_machines.map {|vm| VirtualMachineBackup.new(vm) }
+
+# Local Backup
 backups.each(&:do_backup!)
-backups.each(&:push_offsite!)
+
+# Offsite Backup
+backups.each do |backup|
+  if backup.error?
+    STDERR.puts "WARNING: #{backup.virtual_machine}: Skipping offsite backup " +
+                "due to previous errors."
+    next
+  end
+  description =
+    backup.time.strftime("%Y-%m-%d_%H:%M") + " #{backup.virtual_machine}"
+  OffsiteBackup.new(backup.target_dir, description).push_offsite!
+end

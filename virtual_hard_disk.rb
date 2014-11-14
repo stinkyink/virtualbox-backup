@@ -1,5 +1,5 @@
 class VirtualHardDisk
-  include FailureHelpers
+  include Helpers
 
   attr_reader :uuid
 

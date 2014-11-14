@@ -1,5 +1,5 @@
 class VirtualMachine
-  include FailureHelpers
+  include Helpers
 
   attr_reader :uuid
 
