@@ -1,9 +1,10 @@
 verbose: true
-virtual_machines:
-  pause_for_snapshot: true
+virtual-machines:
+  pause-for-snapshot: true
   include:
     - VM Name or UUID
     - VM Name or UUID
+  offsite-exclude: []
 local:
   archive-list-file: './archives.csv'
   out-dir: './Out'
@@ -15,9 +16,9 @@ local:
 encryption:
   key: XXXX
 aws:
-  access_key: XXXX
-  secret_key: XXXX
+  access-key: XXXX
+  secret-key: XXXX
   region: eu-west-1
   glacier:
     vault: Backups
-    upload_chunk_size: 67108864 #64MiB
+    upload-chunk-size: 67108864 #64MiB

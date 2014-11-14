@@ -21,8 +21,8 @@ end
 class GlacierCommand
   def initialize
     glacier =
-      Fog::AWS::Glacier.new(aws_access_key_id: CONFIG['aws']['access_key'],
-                            aws_secret_access_key: CONFIG['aws']['secret_key'],
+      Fog::AWS::Glacier.new(aws_access_key_id: CONFIG['aws']['access-key'],
+                            aws_secret_access_key: CONFIG['aws']['secret-key'],
                             region: CONFIG['aws']['region'])
     @vault = glacier.vaults.get(CONFIG['aws']['glacier']['vault'])
   end

@@ -13,6 +13,17 @@ class VirtualMachine
     }
   end
 
+  def self.find(arg)
+    [*arg].map {|vm_name|
+      begin
+        self.new(vm_name)
+      rescue ProcessingError => e
+        STDERR.puts %(WARNING: Unable to find VM "#{vm_name}": #{e.message})
+        nil
+      end
+    }.compact
+  end
+
   def initialize(vm_name)
     get_vminfo(vm_name)
     @uuid = vminfo['UUID']

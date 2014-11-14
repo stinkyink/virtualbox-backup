@@ -45,7 +45,7 @@ class OffsiteBackup
   def push_io_into_test_file(io_in)
     io_out = File.open(File.join(SCRIPT_DIR, 'test.out'), 'w')
     while true do
-      buffer = io_in.read(CONFIG['aws']['glacier']['upload_chunk_size'])
+      buffer = io_in.read(CONFIG['aws']['glacier']['upload-chunk-size'])
       break  if buffer.nil?
       io_out.write(buffer)
     end
@@ -57,8 +57,8 @@ class OffsiteBackup
     def io_in.rewind
     end
     glacier =
-      Fog::AWS::Glacier.new(aws_access_key_id: CONFIG['aws']['access_key'],
-                            aws_secret_access_key: CONFIG['aws']['secret_key'],
+      Fog::AWS::Glacier.new(aws_access_key_id: CONFIG['aws']['access-key'],
+                            aws_secret_access_key: CONFIG['aws']['secret-key'],
                             region: CONFIG['aws']['region'])
     vault = glacier.vaults.get(CONFIG['aws']['glacier']['vault'])
     archive =
@@ -66,7 +66,7 @@ class OffsiteBackup
         create(description: @description,
                body: io_in,
                multipart_chunk_size:
-                 CONFIG['aws']['glacier']['upload_chunk_size'])
+                 CONFIG['aws']['glacier']['upload-chunk-size'])
     say "Glacier archive: #{@description}"
     say "Glacier archive ID: #{archive.id}"
     CSV.open(CONFIG['local']['archive-list-file'], 'a') do |log_out|

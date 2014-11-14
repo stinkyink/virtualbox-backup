@@ -161,7 +161,7 @@ class VirtualMachineBackup
   end
 
   def whilst_paused(&block)
-    pause_for_snapshot = CONFIG['virtual_machines']['pause-for-snapshot']
+    pause_for_snapshot = CONFIG['virtual-machines']['pause-for-snapshot']
     if pause_for_snapshot && @vm.state == 'running'
       say "== Pausing: #{@vm}"
       @vm.save!
