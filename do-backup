@@ -34,9 +34,8 @@ def print_usage_and_exit!(code = 1)
 Usage: #{File.basename(__FILE__)} [options]
 
 Options:
-  -h
-  --help        Show this help
-  --no-offsite  Don't perform off-site backup
+  -h, --help        Show this help
+      --no-offsite  Don't perform off-site backup
   OUT
   exit
 end
