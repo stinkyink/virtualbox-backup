@@ -23,11 +23,11 @@ LVM = COMMANDS['lvm']
 MOUNT = COMMANDS['mount']
 UMOUNT = COMMANDS['umount']
 
-require_relative 'helpers'
-require_relative 'offsite_backup'
-require_relative 'virtual_hard_disk'
-require_relative 'virtual_machine'
-require_relative 'virtual_machine_backup'
+require_relative 'lib/helpers'
+require_relative 'lib/offsite_backup'
+require_relative 'lib/virtual_hard_disk'
+require_relative 'lib/virtual_machine'
+require_relative 'lib/virtual_machine_backup'
 
 if not Dir.exists?(OUT_DIR)
   STDERR.puts "ERROR: Output directory does not exist: #{OUT_DIR}"
