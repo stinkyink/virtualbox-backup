@@ -1,5 +1,13 @@
 verbose: true
 pause_vms: true
+local:
+  archive-list-file: './archives.csv'
+  out-dir: './Out'
+  commands:
+    vbox-manage: 'VBoxManage'
+    lvm: 'sudo lvm'
+    mount: 'sudo mount'
+    umount: 'sudo umount'
 encryption:
   key: XXXX
 aws:

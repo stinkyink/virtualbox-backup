@@ -11,17 +11,16 @@ trap :INT, :EXIT
 
 SCRIPT_DIR = File.dirname(__FILE__)
 CONFIG_FILE = SCRIPT_DIR + '/config.yaml'
-LOG_FILE = SCRIPT_DIR + '/archives.log'
-OUT_DIR = SCRIPT_DIR + '/Out'
 
 CONFIG = YAML.load_file(CONFIG_FILE)
 
+OUT_DIR = CONFIG['local']['out-dir']
 VERBOSE = CONFIG['verbose']
 
-VBOX_MANAGE = '/usr/bin/VBoxManage'
-LVM = 'sudo /sbin/lvm'
-MOUNT = 'sudo mount'
-UMOUNT = 'sudo umount'
+VBOX_MANAGE = CONFIG['local']['vbox-manage']
+LVM = CONFIG['local']['lvm']
+MOUNT = CONFIG['local']['mount']
+UMOUNT = CONFIG['local']['umount']
 
 require_relative 'failure_helpers'
 require_relative 'virtual_machine'
@@ -124,7 +123,7 @@ class VirtualMachineBackup
                  CONFIG['aws']['glacier']['upload_chunk_size'])
     say "Glacier archive: #{description}"
     say "Glacier archive ID: #{archive.id}"
-    CSV.open(LOG_FILE, 'a') do |log_out|
+    CSV.open(CONFIG['local']['archive-list-file'], 'a') do |log_out|
       log_out << [description, archive.id]
     end
   end
