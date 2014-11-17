@@ -2,3 +2,4 @@
 *.swo
 /.ruby-version
 /config.yaml
+/archives.csv
