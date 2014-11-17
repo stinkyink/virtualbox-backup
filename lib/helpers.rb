@@ -13,6 +13,6 @@ module Helpers
   end
 
   def say(message)
-    puts message  if VERBOSE
+    puts message  if $verbose
   end
 end

@@ -15,7 +15,6 @@ CONFIG_FILE = SCRIPT_DIR + '/config.yaml'
 CONFIG = YAML.load_file(CONFIG_FILE)
 
 OUT_DIR = CONFIG['local']['out-dir']
-VERBOSE = CONFIG['verbose']
 
 COMMANDS = CONFIG['local']['commands']
 VBOX_MANAGE = COMMANDS['vbox-manage']
@@ -35,17 +34,21 @@ Usage: #{File.basename(__FILE__)} [options]
 
 Options:
   -h, --help        Show this help
+  -q, --quiet       Suppress output
       --no-offsite  Don't perform off-site backup
   OUT
   exit
 end
 
 $do_offsite = true
+$verbose = true
 if ARGV.length > 0
   ARGV.each do |arg|
     case arg
     when '-h', '--help'
       print_usage_and_exit!(0)
+    when '-q', '--quiet'
+      $verbose = false
     when '--no-offsite'
       $do_offsite = false
     else

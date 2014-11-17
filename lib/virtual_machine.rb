@@ -63,7 +63,7 @@ class VirtualMachine
   end
 
   def start!
-    quiet = "2> /dev/null"  unless VERBOSE
+    quiet = "2> /dev/null"  unless $verbose
     `#{VBOX_MANAGE} startvm #{@uuid} --type headless #{quiet}`
     if $?.exitstatus != 0
       fail "Unable to resume"
@@ -71,7 +71,7 @@ class VirtualMachine
   end
 
   def save!
-    quiet = "2> /dev/null"  unless VERBOSE
+    quiet = "2> /dev/null"  unless $verbose
     `#{VBOX_MANAGE} controlvm #{@uuid} savestate #{quiet}`
     if $?.exitstatus != 0
       fail "Unable to pause"
