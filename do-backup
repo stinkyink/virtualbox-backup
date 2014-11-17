@@ -2,6 +2,7 @@
 
 require 'csv'
 require 'fileutils'
+require 'optparse'
 require 'tmpdir'
 
 require 'bundler/setup'
@@ -28,36 +29,26 @@ require_relative 'lib/virtual_hard_disk'
 require_relative 'lib/virtual_machine'
 require_relative 'lib/virtual_machine_backup'
 
-def print_usage_and_exit!(code = 1)
-  STDOUT.puts <<-OUT
-Usage: #{File.basename(__FILE__)} [options]
+$options = OpenStruct.new
+$options.do_offsite = true
+$options.quiet = false
 
-Options:
-  -h, --help        Show this help
-  -q, --quiet       Suppress output
-      --no-offsite  Don't perform off-site backup
-  OUT
-  exit
-end
+OptionParser.new {|opts|
+  opts.banner = "Usage: #{File.basename(__FILE__)} [options]"
+  opts.separator ''
+  opts.separator 'Options:'
 
-$do_offsite = true
-$verbose = true
-if ARGV.length > 0
-  ARGV.each do |arg|
-    case arg
-    when '-h', '--help'
-      print_usage_and_exit!(0)
-    when '-q', '--quiet'
-      $verbose = false
-    when '--no-offsite'
-      $do_offsite = false
-    else
-      STDERR.puts "ERROR: Unknown option: #{arg}"
-      STDERR.puts
-      print_usage_and_exit!
-    end
+  opts.on('-h', '--help', 'Show this message') do
+    puts opts
+    exit
   end
-end
+  opts.on('-q', '--quiet', 'Suppress output') do |v|
+    $options.quiet = true
+  end
+  opts.on('-n', '--no-offsite', "Don't perform off-site backup") do |v|
+    $options.do_offsite = false
+  end
+}.parse!
 
 if not Dir.exists?(OUT_DIR)
   STDERR.puts "ERROR: Output directory does not exist: #{OUT_DIR}"

@@ -19,7 +19,7 @@ class VirtualMachineBackup
     STDERR.puts "ERROR: #{name}: #{e.message}"
     @error = true
   ensure
-    puts  if $verbose
+    puts  unless $options.quiet
   end
 
   def virtual_machine
@@ -45,7 +45,7 @@ class VirtualMachineBackup
         %(--exclude "#{file[(backup_dir.length + 1)..-1]}")
       }.join(' ')
     end
-    v = $verbose ? 'v' : ''
+    v = $options.quiet ? '' : 'v'
     cmd = %(tar c#{v}z -C "#{File.dirname(backup_dir)}" #{exclude} ) +
           %("#{File.basename(backup_dir)}" > "#{out_file}")
     say "# #{cmd}"
@@ -90,7 +90,7 @@ class VirtualMachineBackup
   def backup_hard_disk_file(hdd_path)
     out_file = File.join(@target_dir, 'HDDs', File.basename(hdd_path) + '.gz')
     FileUtils.mkdir_p(File.dirname(out_file))
-    source_cmd = $verbose ? %(pv "#{hdd_path}") : %(cat "#{hdd_path}")
+    source_cmd = $options.quiet ? %(cat "#{hdd_path}"): %(pv "#{hdd_path}")
     cmd = %(#{source_cmd} | gzip > "#{out_file}")
     say "== Backing up #{@vm.name} HDD #{File.basename(hdd_path)}"
     say "# #{cmd}"

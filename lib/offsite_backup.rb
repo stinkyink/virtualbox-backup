@@ -18,7 +18,7 @@ class OffsiteBackup
     say "== Pushing #{@local_dir} to Amazon"
     tar_cmd = %(tar c -C "#{File.dirname(@local_dir)}" ) +
               %("#{File.basename(@local_dir)}")
-    if $verbose
+    unless $options.quiet
       pv_cmd = "pv -s #{directory_size(@local_dir)}"
     end
     IO.pipe do |passphrase_out, passphrase_in|

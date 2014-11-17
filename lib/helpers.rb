@@ -13,6 +13,6 @@ module Helpers
   end
 
   def say(message)
-    puts message  if $verbose
+    puts message  unless $options.quiet
   end
 end
