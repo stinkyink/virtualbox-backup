@@ -62,7 +62,7 @@ backups = virtual_machines.map {|vm| VirtualMachineBackup.new(vm) }
 backups.each(&:do_backup!)
 
 # Offsite Backup
-exit  if not $do_offsite
+exit  if not $options.do_offsite
 exclude_offsite_uuids =
   VirtualMachine.find(CONFIG['virtual-machines']['offsite-exclude']).
     map(&:uuid)
