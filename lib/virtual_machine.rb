@@ -63,7 +63,7 @@ class VirtualMachine
   end
 
   def start!
-    quiet = "2> /dev/null"  if $options.quiet
+    quiet = "> /dev/null"  if $options.quiet
     cmd = "#{VBOX_MANAGE} startvm #{@uuid} --type headless #{quiet}"
     pid = Process.spawn(cmd)
     Process.wait(pid)
