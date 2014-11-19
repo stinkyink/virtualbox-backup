@@ -1,10 +1,10 @@
+offsite-backend: glacier  # or s3
 virtual-machines:
   pause-for-snapshot: true
   include:
     - VM Name or UUID
     - VM Name or UUID
   offsite-exclude: []
-  offsite: glacier  # or s3
 local:
   archive-list-file: './archives.csv'
   out-dir: './Out'
@@ -19,8 +19,8 @@ aws:
   access-key: XXXX
   secret-key: XXXX
   region: eu-west-1
+  upload-chunk-size: 67108864 #64MiB
   glacier:
     vault: Backups
-    upload-chunk-size: 67108864 #64MiB
   s3:
     bucket: Backups
