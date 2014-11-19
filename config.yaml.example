@@ -4,6 +4,7 @@ virtual-machines:
     - VM Name or UUID
     - VM Name or UUID
   offsite-exclude: []
+  offsite: glacier  # or s3
 local:
   archive-list-file: './archives.csv'
   out-dir: './Out'
@@ -21,3 +22,5 @@ aws:
   glacier:
     vault: Backups
     upload-chunk-size: 67108864 #64MiB
+  s3:
+    bucket: Backups
