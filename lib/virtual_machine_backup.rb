@@ -169,7 +169,11 @@ class VirtualMachineBackup
         yield
       ensure
         say "== Resuming: #{@vm}"
-        @vm.start!
+        begin
+          @vm.start!
+        rescue ProcessingError => e
+          STDERR.puts "WARNING: #{@vm}: #{e.message}"
+        end
       end
     else
       yield
