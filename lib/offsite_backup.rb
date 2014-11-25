@@ -20,6 +20,8 @@ class OffsiteBackup
     end
   rescue ProcessingError => e
     STDERR.puts "ERROR: #{@vm}: #{e.message}"
+  ensure
+    puts  unless $options.quiet
   end
 
   private
