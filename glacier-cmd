@@ -76,7 +76,7 @@ class GlacierCommand
       file_path = File.join(SCRIPT_DIR, archive_job.archive_id)
       pv_cmd = %(pv -s #{archive_job.archive_size})
       IO.pipe do |passphrase_out, passphrase_in|
-        passphrase_in.puts(CONFIG['encryption']['key'])
+        passphrase_in.puts(CONFIG['offsite']['encryption-key'])
         passphrase_in.close
         gpg_cmd =
           'gpg --batch --decrypt ' +

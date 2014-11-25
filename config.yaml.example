@@ -1,4 +1,3 @@
-offsite-backend: glacier  # or s3
 virtual-machines:
   pause-for-snapshot: true
   include:
@@ -13,8 +12,10 @@ local:
     lvm: 'sudo lvm'
     mount: 'sudo mount'
     umount: 'sudo umount'
-encryption:
-  key: XXXX
+offsite:
+  backend: glacier  # or s3
+  encryption-key: XXXX
+  expiry-days: 0.9
 aws:
   access-key: XXXX
   secret-key: XXXX

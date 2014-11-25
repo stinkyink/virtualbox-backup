@@ -24,10 +24,16 @@ MOUNT = COMMANDS['mount']
 UMOUNT = COMMANDS['umount']
 
 require_relative 'lib/helpers'
+
 require_relative 'lib/offsite_backup'
 require_relative 'lib/virtual_hard_disk'
 require_relative 'lib/virtual_machine'
 require_relative 'lib/virtual_machine_backup'
+
+require_relative 'lib/offsite_backends/backend'
+require_relative 'lib/offsite_backends/glacier_backend'
+require_relative 'lib/offsite_backends/s3_backend'
+require_relative 'lib/offsite_backends/test_backend'
 
 $options = OpenStruct.new
 $options.do_offsite = true
@@ -83,7 +89,9 @@ class Tool
       end
       description =
         backup.time.strftime("%Y-%m-%d_%H:%M") + " #{backup.virtual_machine}"
-      OffsiteBackup.new(backup.target_dir, description).push_offsite!
+      offsite_backup = OffsiteBackup.new(backup.target_dir, description)
+      offsite_backup.push_offsite!
+      offsite_backup.remove_old_backups!
     end
   end
 end
