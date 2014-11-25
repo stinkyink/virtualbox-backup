@@ -5,7 +5,6 @@ virtual-machines:
     - VM Name or UUID
   offsite-exclude: []
 local:
-  archive-list-file: './archives.csv'
   out-dir: './Out'
   commands:
     vbox-manage: 'VBoxManage'
@@ -23,5 +22,6 @@ aws:
   upload-chunk-size: 67108864 #64MiB
   glacier:
     vault: Backups
+    archive-list-file: './archives.csv'
   s3:
     bucket: Backups

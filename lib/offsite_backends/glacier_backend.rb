@@ -26,7 +26,7 @@ class GlacierBackend < Backend
                  CONFIG['aws']['upload-chunk-size'])
     say "Glacier archive: #{@description}"
     say "Glacier archive ID: #{archive.id}"
-    CSV.open(CONFIG['local']['archive-list-file'], 'a') do |log_out|
+    CSV.open(CONFIG['aws']['glacier']['archive-list-file'], 'a') do |log_out|
       log_out << [@description, archive.id]
     end
   end
