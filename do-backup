@@ -55,25 +55,37 @@ if not Dir.exists?(OUT_DIR)
   exit!
 end
 
-virtual_machines = VirtualMachine.find(CONFIG['virtual-machines']['include'])
-backups = virtual_machines.map {|vm| VirtualMachineBackup.new(vm) }
+class Tool
+  def self.run!
+    virtual_machines = VirtualMachine.find(CONFIG['virtual-machines']['include'])
+    @backups = virtual_machines.map {|vm| VirtualMachineBackup.new(vm) }
 
-# Local Backup
-backups.each(&:do_backup!)
-
-# Offsite Backup
-exit  if not $options.do_offsite
-exclude_offsite_uuids =
-  VirtualMachine.find(CONFIG['virtual-machines']['offsite-exclude']).
-    map(&:uuid)
-backups.each do |backup|
-  next  if exclude_offsite_uuids.include?(backup.virtual_machine.uuid)
-  if backup.error?
-    STDERR.puts "WARNING: #{backup.virtual_machine}: Skipping offsite backup " +
-                "due to previous errors."
-    next
+    do_local_backups!
+    do_offsite_backups!  if $options.do_offsite
   end
-  description =
-    backup.time.strftime("%Y-%m-%d_%H:%M") + " #{backup.virtual_machine}"
-  OffsiteBackup.new(backup.target_dir, description).push_offsite!
+
+  private
+
+  def self.do_local_backups!
+    @backups.each(&:do_backup!)
+  end
+
+  def self.do_offsite_backups!
+    exclude_offsite_uuids =
+      VirtualMachine.find(CONFIG['virtual-machines']['offsite-exclude']).
+        map(&:uuid)
+    @backups.each do |backup|
+      next  if exclude_offsite_uuids.include?(backup.virtual_machine.uuid)
+      if backup.error?
+        STDERR.puts "WARNING: #{backup.virtual_machine}: Skipping offsite backup " +
+                    "due to previous errors."
+        next
+      end
+      description =
+        backup.time.strftime("%Y-%m-%d_%H:%M") + " #{backup.virtual_machine}"
+      OffsiteBackup.new(backup.target_dir, description).push_offsite!
+    end
+  end
 end
+
+Tool.run!
