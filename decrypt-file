@@ -26,17 +26,17 @@ file_in = ARGV.first
 if !File.exists?(file_in)
   STDERR.puts "ERROR: file does not exist: #{file_in}"
 end
-file_out = file_in + '.tar'
 
 puts "== Decrypting File #{file_in}"
-pv_cmd = %(pv #{file_in})
+pv_cmd = %(pv "#{file_in}")
 IO.pipe do |passphrase_out, passphrase_in|
   passphrase_in.puts(CONFIG['offsite']['encryption-key'])
   passphrase_in.close
   gpg_cmd =
     'gpg --batch --decrypt ' +
     "--passphrase-file /proc/#{Process.pid}/fd/#{passphrase_out.to_i}"
-  cmd = [pv_cmd, gpg_cmd].join(' | ') + %( > "#{file_out}")
+  tar_cmd = %(tar -C "#{File.dirname(file_in)}" -xv)
+  cmd = [pv_cmd, gpg_cmd, tar_cmd].join(' | ')
   puts "# #{cmd}"
   pid = Process.spawn(cmd)
   Process.wait(pid)
