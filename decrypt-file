@@ -1,0 +1,46 @@
+#!/usr/bin/env ruby
+
+trap :INT, :EXIT
+
+require 'optparse'
+require 'yaml'
+
+SCRIPT_DIR = File.dirname(__FILE__)
+CONFIG_FILE = SCRIPT_DIR + '/config.yaml'
+
+CONFIG = YAML.load_file(CONFIG_FILE)
+
+option_parser = OptionParser.new {|opts|
+  opts.banner = "Usage: #{File.basename(__FILE__)} <filename>"
+  opts.separator 'Options:'
+
+  opts.on('-h', '--help', 'Show this message')
+}
+
+if ARGV.length != 1
+  STDERR.puts option_parser
+  exit!
+end
+
+file_in = ARGV.first
+if !File.exists?(file_in)
+  STDERR.puts "ERROR: file does not exist: #{file_in}"
+end
+file_out = file_in + '.tar'
+
+puts "== Decrypting File #{file_in}"
+pv_cmd = %(pv #{file_in})
+IO.pipe do |passphrase_out, passphrase_in|
+  passphrase_in.puts(CONFIG['offsite']['encryption-key'])
+  passphrase_in.close
+  gpg_cmd =
+    'gpg --batch --decrypt ' +
+    "--passphrase-file /proc/#{Process.pid}/fd/#{passphrase_out.to_i}"
+  cmd = [pv_cmd, gpg_cmd].join(' | ') + %( > "#{file_out}")
+  puts "# #{cmd}"
+  pid = Process.spawn(cmd)
+  Process.wait(pid)
+  if $?.exitstatus != 0
+    STDERR.puts 'ERROR: Failed to decrypt archive.'
+  end
+end
