@@ -7,6 +7,7 @@ class OffsiteBackup
 
   def push_offsite!
     @backend.push!
+    @success = true
   rescue ProcessingError => e
     STDERR.puts "ERROR: #{e.message}"
   ensure
@@ -14,6 +15,11 @@ class OffsiteBackup
   end
 
   def remove_old_backups!
+    if not @success
+      STDERR.puts 'ERROR: Not removing old remote backups due to ' +
+                  'previous errors.'
+      return
+    end
     @backend.remove_old!
   rescue ProcessingError => e
     STDERR.puts "ERROR: #{e.message}"
