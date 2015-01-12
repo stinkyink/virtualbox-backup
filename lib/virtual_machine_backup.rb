@@ -6,7 +6,8 @@ class VirtualMachineBackup
   def initialize(vm)
     @vm = vm
     @time = Time.now
-    @target_dir = File.join(OUT_DIR, @time.strftime('%Y-%m-%d'), @vm.name)
+    date = @time.strftime("%Y-%m-%d")
+    @target_dir = File.join(OUT_DIR, "0-new_#{date}", @vm.name)
     @error = false
   end
 

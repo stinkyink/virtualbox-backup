@@ -11,6 +11,11 @@ local:
     lvm: 'sudo lvm'
     mount: 'sudo mount'
     umount: 'sudo umount'
+  rotate:
+    dailies: 7
+    weeklies: 4
+    monthlies: 6
+    yearlies: 0
 offsite:
   backend: glacier  # or s3
   encryption-key: XXXX

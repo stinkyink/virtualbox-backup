@@ -74,6 +74,7 @@ class Tool
 
   def self.do_local_backups!
     @backups.each(&:do_backup!)
+    rotate_backups!
   end
 
   def self.do_offsite_backups!
@@ -93,6 +94,61 @@ class Tool
       offsite_backup.push_offsite!
       offsite_backup.remove_old_backups!
     end
+  end
+
+  def self.rotate_backups!
+    dirs_by_type = Hash.new
+    Dir.glob(OUT_DIR + '/*/').each do |dir|
+      matches = /^\d-([a-z]+)/.match(File.basename(dir))
+      type = matches[1]
+      (dirs_by_type[type] ||= Array.new) << dir
+    end
+
+    moving_up = dirs_by_type['new'].sort_by {|x| dir_date(x) }
+    intervals = {
+      daily:     1,
+      weekly:    7,
+      monthly:  30,
+      yearly:  365
+    }
+    %w(daily weekly monthly yearly).each_with_index do |type, type_index|
+      dirs = (dirs_by_type[type] || Array.new).sort_by {|x| dir_date(x) }
+      interval = intervals[type.to_sym]
+      moving_up.each do |candidate|
+        if dirs.empty? ||
+           (dir_date(candidate) >= (dir_date(dirs.last) + interval))
+          dirs << candidate
+        else
+          FileUtils.rm_rf(candidate)
+        end
+      end
+      moving_up.clear
+      max_dir_index = CONFIG['local']['rotate'][type[0..-2] + 'ies']
+      digits = max_dir_index.to_s.length
+      dirs.each_with_index do |dir, dir_index|
+        new_index = dirs.count - dir_index
+        if new_index >= (max_dir_index + 1)
+          moving_up << dir
+        else
+          date = File.basename(dir).split('_').last
+          new_dir =
+            OUT_DIR +
+            "/#{type_index + 1}-#{type}." +
+            "#{new_index.to_s.rjust(digits, '0')}_#{date}/"
+          unless dir == new_dir
+            FileUtils.mv(dir, new_dir)
+          end
+        end
+      end
+    end
+
+    moving_up.each do |dir|
+      FileUtils.rm_rf(dir)
+    end
+  end
+
+  def self.dir_date(dir)
+    Date.parse(dir.split('_').last)
   end
 end
 
