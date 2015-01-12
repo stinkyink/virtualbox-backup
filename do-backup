@@ -145,6 +145,8 @@ class Tool
     moving_up.each do |dir|
       FileUtils.rm_rf(dir)
     end
+  rescue Exception => e
+    STDERR.puts "ERROR: Failed to rotate backups: #{e.message}"
   end
 
   def self.dir_date(dir)
