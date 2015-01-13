@@ -145,6 +145,7 @@ class Tool
     moving_up.each do |dir|
       FileUtils.rm_rf(dir)
     end
+    @backups.each(&:rotated!)
   rescue Exception => e
     STDERR.puts "ERROR: Failed to rotate backups: #{e.message}"
   end

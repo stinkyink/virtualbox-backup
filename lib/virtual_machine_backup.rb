@@ -1,13 +1,12 @@
 class VirtualMachineBackup
   include Helpers
 
-  attr_accessor :target_dir, :time
+  attr_accessor :time
 
   def initialize(vm)
     @vm = vm
     @time = Time.now
-    date = @time.strftime("%Y-%m-%d")
-    @target_dir = File.join(OUT_DIR, "0-new_#{date}", @vm.name)
+    @rotated = false
     @error = false
   end
 
@@ -23,6 +22,16 @@ class VirtualMachineBackup
     puts  unless $options.quiet
   end
 
+  def rotated!
+    @rotated = true
+  end
+
+  def target_dir
+    base = @rotated ? '1-daily.1' : '0-new'
+    date = @time.strftime("%Y-%m-%d")
+    File.join(OUT_DIR, "#{base}_#{date}", @vm.name)
+  end
+
   def virtual_machine
     @vm
   end
@@ -36,7 +45,7 @@ class VirtualMachineBackup
   def backup_config(options = {})
     exclude_files = options.fetch(:exclude, [])
     backup_dir = File.dirname(@vm.config_file)
-    out_file = File.join(@target_dir, 'config.tar.gz')
+    out_file = File.join(self.target_dir, 'config.tar.gz')
     FileUtils.mkdir_p(File.dirname(out_file))
     say "== Backing up #{@vm.name} Config"
     unless exclude_files.empty?
@@ -89,7 +98,7 @@ class VirtualMachineBackup
   end
 
   def backup_hard_disk_file(hdd_path)
-    out_file = File.join(@target_dir, 'HDDs', File.basename(hdd_path) + '.gz')
+    out_file = File.join(self.target_dir, 'HDDs', File.basename(hdd_path) + '.gz')
     FileUtils.mkdir_p(File.dirname(out_file))
     source_cmd = $options.quiet ? %(cat "#{hdd_path}"): %(pv "#{hdd_path}")
     cmd = %(#{source_cmd} | gzip > "#{out_file}")
