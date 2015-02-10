@@ -13,7 +13,7 @@ CONFIG = YAML.load_file(CONFIG_FILE)
 def print_usage_and_exit!
   puts <<-END
 Usage:
-  #{File.basename(__FILE__)} jobs|archives|(download <archive-id>)
+  #{File.basename(__FILE__)} jobs|archives|(delete <archive-id>)|(download <archive-id>)
   END
   exit!
 end
@@ -47,6 +47,12 @@ class GlacierCommand
       puts '== Archive Inventory'
       pp inventory_job.get_output.body
     end
+  end
+
+  def delete(args)
+    print_usage_and_exit!  if not args.count == 1
+    archive = @vault.archives.get(args.first)
+    archive.destroy
   end
 
   def download(args)
@@ -107,6 +113,8 @@ when 'jobs'
   glacier_cmd.list_jobs(args)
 when 'archives'
   glacier_cmd.list_archives(args)
+when 'delete'
+  glacier_cmd.delete(args)
 when 'download'
   glacier_cmd.download(args)
 else
