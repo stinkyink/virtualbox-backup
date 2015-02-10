@@ -155,7 +155,7 @@ class VirtualMachineBackup
       sleep 5
     end
     if $?.exitstatus != 0
-      fail "Failed to remove snapshot #{snapshot_lv}"
+      STDERR.puts "WARNING: #{@vm}: Failed to remove snapshot #{snapshot_lv}"
     end
   end
 
