@@ -148,8 +148,12 @@ class VirtualMachineBackup
     say "== Removing #{snapshot_lv}"
     cmd = "#{LVM} lvremove -f #{snapshot_lv} > /dev/null"
     say "# #{cmd}"
-    pid = Process.spawn(cmd)
-    Process.wait(pid)
+    6.times do
+      pid = Process.spawn(cmd)
+      Process.wait(pid)
+      break  if $?.exitstatus == 0
+      sleep 5
+    end
     if $?.exitstatus != 0
       fail "Failed to remove snapshot #{snapshot_lv}"
     end
