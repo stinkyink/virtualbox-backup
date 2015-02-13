@@ -146,16 +146,18 @@ class VirtualMachineBackup
 
   def remove_snapshot(snapshot_lv)
     say "== Removing #{snapshot_lv}"
-    cmd = "#{LVM} lvremove -f #{snapshot_lv} > /dev/null"
+    cmd = "#{LVM} lvremove -f #{snapshot_lv} 2>&1 > /dev/null"
     say "# #{cmd}"
+    output = ""
     6.times do
-      pid = Process.spawn(cmd)
-      Process.wait(pid)
+      output = `#{cmd}`
       break  if $?.exitstatus == 0
       sleep 5
     end
     if $?.exitstatus != 0
       STDERR.puts "WARNING: #{@vm}: Failed to remove snapshot #{snapshot_lv}"
+      STDERR.puts "Output was:"
+      STDERR.print output.split("\n").map {|x| "  #{x}"}.join("\n")
     end
   end
 
