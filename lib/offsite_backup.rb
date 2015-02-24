@@ -10,6 +10,11 @@ class OffsiteBackup
     @success = true
   rescue ProcessingError => e
     STDERR.puts "ERROR: #{e.message}"
+  rescue Exception => e
+    STDERR.puts "ERROR: Failed to send backup offsite:"
+    [e.message, *e.backtrace].each do |line|
+      STDERR.puts "  #{line}"
+    end
   ensure
     puts  unless $options.quiet
   end
