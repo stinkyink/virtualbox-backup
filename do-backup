@@ -36,6 +36,7 @@ require_relative 'lib/offsite_backends/s3_backend'
 require_relative 'lib/offsite_backends/test_backend'
 
 $options = OpenStruct.new
+$options.do_local = true
 $options.do_offsite = true
 $options.quiet = false
 
@@ -51,7 +52,10 @@ OptionParser.new {|opts|
   opts.on('-q', '--quiet', 'Suppress output') do |v|
     $options.quiet = true
   end
-  opts.on('-n', '--no-offsite', "Don't perform off-site backup") do |v|
+  opts.on('-l', '--no-local', "Don't perform local backup") do |v|
+    $options.do_local = false
+  end
+  opts.on('-o', '--no-offsite', "Don't perform off-site backup") do |v|
     $options.do_offsite = false
   end
 }.parse!
@@ -66,7 +70,7 @@ class Tool
     virtual_machines = VirtualMachine.find(CONFIG['virtual-machines']['include'])
     @backups = virtual_machines.map {|vm| VirtualMachineBackup.new(vm) }
 
-    do_local_backups!
+    do_local_backups!    if $options.do_local
     do_offsite_backups!  if $options.do_offsite
   end
 
@@ -90,7 +94,8 @@ class Tool
       end
       description =
         backup.time.strftime("%Y-%m-%d_%H:%M") + " #{backup.virtual_machine}"
-      offsite_backup = OffsiteBackup.new(backup.target_dir, description)
+      offsite_backup =
+        OffsiteBackup.new(backup.completed_backup_dirs.first, description)
       offsite_backup.push_offsite!
       offsite_backup.remove_old_backups!
     end
@@ -145,7 +150,6 @@ class Tool
     moving_up.each do |dir|
       FileUtils.rm_rf(dir)
     end
-    @backups.each(&:rotated!)
   rescue Exception => e
     STDERR.puts "ERROR: Failed to rotate backups: #{e.message}"
   end

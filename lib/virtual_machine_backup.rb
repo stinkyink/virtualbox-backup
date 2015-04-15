@@ -6,7 +6,6 @@ class VirtualMachineBackup
   def initialize(vm)
     @vm = vm
     @time = Time.now
-    @rotated = false
     @error = false
   end
 
@@ -22,14 +21,12 @@ class VirtualMachineBackup
     puts  unless $options.quiet
   end
 
-  def rotated!
-    @rotated = true
-  end
-
-  def target_dir
-    base = @rotated ? '1-daily.1' : '0-new'
-    date = @time.strftime("%Y-%m-%d")
-    File.join(OUT_DIR, "#{base}_#{date}", @vm.name)
+  def completed_backup_dirs
+    Dir.glob(File.join(OUT_DIR, '**', @vm.name)).
+      reject {|x|
+        backup_root = File.basename(File.dirname(x))
+        backup_root.start_with?('0-new')
+      }.sort
   end
 
   def virtual_machine
@@ -45,7 +42,7 @@ class VirtualMachineBackup
   def backup_config(options = {})
     exclude_files = options.fetch(:exclude, [])
     backup_dir = File.dirname(@vm.config_file)
-    out_file = File.join(self.target_dir, 'config.tar.gz')
+    out_file = File.join(target_dir(), 'config.tar.gz')
     FileUtils.mkdir_p(File.dirname(out_file))
     say "== Backing up #{@vm.name} Config"
     unless exclude_files.empty?
@@ -98,7 +95,7 @@ class VirtualMachineBackup
   end
 
   def backup_hard_disk_file(hdd_path)
-    out_file = File.join(self.target_dir, 'HDDs', File.basename(hdd_path) + '.gz')
+    out_file = File.join(target_dir(), 'HDDs', File.basename(hdd_path) + '.gz')
     FileUtils.mkdir_p(File.dirname(out_file))
     source_cmd = $options.quiet ? %(cat "#{hdd_path}"): %(pv "#{hdd_path}")
     cmd = %(#{source_cmd} | gzip > "#{out_file}")
@@ -194,5 +191,10 @@ class VirtualMachineBackup
     else
       yield
     end
+  end
+
+  def target_dir
+    date = @time.strftime("%Y-%m-%d")
+    File.join(OUT_DIR, "0-new_#{date}", @vm.name)
   end
 end
