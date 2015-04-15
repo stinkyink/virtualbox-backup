@@ -1,0 +1,12 @@
+#!/usr/bin/env ruby
+
+require 'fileutils'
+
+OUT_DIR = 'Out'
+
+(1..12).to_a.reverse.each do |month|
+  (1..28).to_a.reverse.each do |day|
+    m, d = [month, day].map {|x| x.to_s.rjust(2, '0')}
+    FileUtils.mkdir(OUT_DIR + "/0-daily.0_2014-#{m}-#{d}")
+  end
+end
