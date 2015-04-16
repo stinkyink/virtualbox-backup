@@ -5,11 +5,11 @@ class VirtualMachineBackup
 
   def initialize(vm)
     @vm = vm
-    @time = Time.now
     @error = false
   end
 
   def do_backup!
+    @time = Time.now
     hdds = @vm.hard_disks_and_ancestors
     backup_config(exclude: hdds.map(&:path))
     backup_hard_disks(hdds)
