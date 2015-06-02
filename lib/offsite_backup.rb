@@ -1,11 +1,11 @@
 class OffsiteBackup
   include Helpers
 
-  def initialize(local_dir, description)
-    @backend = offsite_backend_class().new(local_dir, description)
+  def initialize(local_dir, name, time)
+    @backend = offsite_backend_class().new(local_dir, name, time)
   end
 
-  def push_offsite!
+  def push!
     @backend.push!
     @success = true
   rescue ProcessingError => e
@@ -19,7 +19,7 @@ class OffsiteBackup
     puts  unless $options.quiet
   end
 
-  def remove_old_backups!
+  def remove_old!
     if not @success
       STDERR.puts 'ERROR: Not removing old remote backups due to ' +
                   'previous errors.'

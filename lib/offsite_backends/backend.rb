@@ -2,9 +2,11 @@ module OffsiteBackends
 class Backend
   include Helpers
 
-  def initialize(local_dir, description)
+  def initialize(local_dir, name, time)
     @local_dir = local_dir
-    @description = description
+    @name = name
+    @time = time
+    @description = @time.strftime("%Y-%m-%d_%H:%M") + " #{name}"
   end
 
   def remove_old!

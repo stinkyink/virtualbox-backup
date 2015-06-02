@@ -92,12 +92,11 @@ class Tool
                     "due to previous errors."
         next
       end
-      description =
-        backup.time.strftime("%Y-%m-%d_%H:%M") + " #{backup.virtual_machine}"
       offsite_backup =
-        OffsiteBackup.new(backup.completed_backup_dirs.first, description)
-      offsite_backup.push_offsite!
-      offsite_backup.remove_old_backups!
+        OffsiteBackup.new(backup.completed_backup_dirs.first,
+                          backup.virtual_machine.name, backup.time)
+      offsite_backup.push!
+      offsite_backup.remove_old!
     end
   end
 

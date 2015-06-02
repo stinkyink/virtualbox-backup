@@ -9,7 +9,8 @@ class S3Backend < Backend
 
   def remove_old!
     old_files = s3_bucket().files.select {|file|
-      file.last_modified < expiry_date()
+      matches = /.*?\s(.*) {/.match(file.key)
+      matches[1] == @name && file.last_modified < expiry_date()
     }
     return  if old_files.empty?
     say "== Removing backups older than #{expiry_date()}"

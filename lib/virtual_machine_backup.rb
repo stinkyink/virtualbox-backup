@@ -1,8 +1,6 @@
 class VirtualMachineBackup
   include Helpers
 
-  attr_accessor :time
-
   def initialize(vm)
     @vm = vm
     @error = false
@@ -31,6 +29,14 @@ class VirtualMachineBackup
 
   def virtual_machine
     @vm
+  end
+
+  def time
+    if @time.nil?
+      date_dir = File.dirname(completed_backup_dirs.first)
+      @time = DateTime.strptime(date_dir[-10..-1], '%Y-%m-%d')
+    end
+    @time
   end
 
   def error?
