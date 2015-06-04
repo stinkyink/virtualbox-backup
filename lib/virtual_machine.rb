@@ -1,22 +1,29 @@
 class VirtualMachine
   include Helpers
 
-  attr_reader :name
+  attr_reader :name, :config
   alias :to_s :name
 
   def self.find(arg)
-    [*arg].map {|name|
+    [*arg].map {|config|
       begin
-        self.new(name)
+        self.new(config)
       rescue ProcessingError => e
+        name = config.respond_to?(:keys) ? config.keys.first : config
         STDERR.puts %(WARNING: Unable to find VM "#{name}": #{e.message})
         nil
       end
     }.compact
   end
 
-  def initialize(name)
-    @name = name
+  def initialize(config)
+    if config.respond_to?(:keys)
+      @name = config.keys.first
+      @config = config[@name] || {}
+    else
+      @name = config
+      @config = {}
+    end
   rescue ProcessingError => e
     fail "Unable to initialize: #{e.message}"
   end

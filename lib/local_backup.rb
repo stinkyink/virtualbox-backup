@@ -96,7 +96,10 @@ class VirtualMachineBackup
   def create_snapshot_of(lvm_lv)
     say "== Creating snapshot of #{lvm_lv}"
     snapshot_lv = lvm_lv + '-vm-backup'
-    cmd = "#{SUDO} lvm lvcreate -L10G --snapshot ".lstrip +
+    snapshot_size =
+      @vm.config['lv-snapshot-size'] ||
+        CONFIG['local']['default-lv-snapshot-size']
+    cmd = "#{SUDO} lvm lvcreate -L#{snapshot_size} --snapshot ".lstrip +
           "--name #{File.basename(snapshot_lv)} #{lvm_lv} > /dev/null"
     say "# #{cmd}"
     pid = Process.spawn(cmd)

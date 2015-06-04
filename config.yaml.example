@@ -1,10 +1,12 @@
 virtual-machines:
   include:
-    - VM Name or UUID
-    - VM Name or UUID
+    - VM Name
+    - VM Name:
+        lv-snapshot-size: 100M
   offsite-exclude: []
 local:
   out-dir: './Out'
+  default-lv-snapshot-size: 10G
   use-sudo: false
   rotate:
     dailies: 7
