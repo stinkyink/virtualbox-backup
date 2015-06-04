@@ -16,19 +16,13 @@ CONFIG_FILE = SCRIPT_DIR + '/config.yaml'
 CONFIG = YAML.load_file(CONFIG_FILE)
 
 OUT_DIR = CONFIG['local']['out-dir']
-
-COMMANDS = CONFIG['local']['commands']
-VBOX_MANAGE = COMMANDS['vbox-manage']
-LVM = COMMANDS['lvm']
-MOUNT = COMMANDS['mount']
-UMOUNT = COMMANDS['umount']
+SUDO = CONFIG['local']['use-sudo'] ? 'sudo' : ''
 
 require_relative 'lib/helpers'
 
-require_relative 'lib/offsite_backup'
-require_relative 'lib/virtual_hard_disk'
 require_relative 'lib/virtual_machine'
-require_relative 'lib/virtual_machine_backup'
+require_relative 'lib/local_backup'
+require_relative 'lib/offsite_backup'
 
 require_relative 'lib/offsite_backends/backend'
 require_relative 'lib/offsite_backends/glacier_backend'
@@ -82,11 +76,11 @@ class Tool
   end
 
   def self.do_offsite_backups!
-    exclude_offsite_uuids =
+    exclude_offsite =
       VirtualMachine.find(CONFIG['virtual-machines']['offsite-exclude']).
-        map(&:uuid)
+        map(&:name)
     @backups.each do |backup|
-      next  if exclude_offsite_uuids.include?(backup.virtual_machine.uuid)
+      next  if exclude_offsite.include?(backup.virtual_machine.name)
       if backup.error?
         STDERR.puts "WARNING: #{backup.virtual_machine}: Skipping offsite backup " +
                     "due to previous errors."
@@ -107,6 +101,8 @@ class Tool
       type = matches[1]
       (dirs_by_type[type] ||= Array.new) << dir
     end
+
+    return  if dirs_by_type['new'].nil?
 
     moving_up = dirs_by_type['new'].sort_by {|x| dir_date(x) }
     intervals = {

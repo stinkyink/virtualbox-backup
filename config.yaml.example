@@ -1,16 +1,11 @@
 virtual-machines:
-  pause-for-snapshot: true
   include:
     - VM Name or UUID
     - VM Name or UUID
   offsite-exclude: []
 local:
   out-dir: './Out'
-  commands:
-    vbox-manage: 'VBoxManage'
-    lvm: 'sudo lvm'
-    mount: 'sudo mount'
-    umount: 'sudo umount'
+  use-sudo: false
   rotate:
     dailies: 7
     weeklies: 4
