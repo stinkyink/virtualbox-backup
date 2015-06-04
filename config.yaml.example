@@ -2,11 +2,11 @@ virtual-machines:
   include:
     - VM Name
     - VM Name:
-        lv-snapshot-size: 100M
+        snapshot-lvcreate-args: -l50%FREE
   offsite-exclude: []
 local:
   out-dir: './Out'
-  default-lv-snapshot-size: 10G
+  default-snapshot-lvcreate-args: -L10G
   use-sudo: false
   rotate:
     dailies: 7
