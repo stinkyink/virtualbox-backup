@@ -121,8 +121,7 @@ class VirtualMachineBackup
       sleep 5
     end
     if $?.exitstatus != 0
-      STDERR.puts "WARNING: #{@vm}: Failed to remove logical volume " +
-                  "#{snapshot_lv}"
+      STDERR.puts "WARNING: #{@vm}: Failed to remove logical volume #{lv}"
       STDERR.puts "Output was:"
       STDERR.print output.split("\n").map {|x| "  #{x}"}.join("\n")
     end
