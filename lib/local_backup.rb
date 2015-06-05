@@ -89,7 +89,7 @@ class VirtualMachineBackup
     pid = Process.spawn(cmd)
     Process.wait(pid)
     if $?.exitstatus != 0
-      fail "Failed to back up HDD: #{hdd_path}"
+      fail "Failed to back up disk #{block_device}"
     end
   end
 
