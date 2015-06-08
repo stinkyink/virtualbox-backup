@@ -38,7 +38,12 @@ class S3Backend < Backend
       aws_secret_access_key: CONFIG['aws']['secret-key'],
       region: CONFIG['aws']['region']
     })
-    s3.directories.get(CONFIG['aws']['s3']['bucket'])
+    bucket_name = CONFIG['aws']['s3']['bucket']
+    bucket = s3.directories.get(bucket_name)
+    if bucket.nil?
+      fail %(Can't find bucket "#{bucket_name}". Did you spell it correctly?)
+    end
+    bucket
   end
 end
 end
