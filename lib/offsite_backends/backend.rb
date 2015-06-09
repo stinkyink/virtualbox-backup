@@ -25,8 +25,9 @@ class Backend
     IO.pipe do |passphrase_out, passphrase_in|
       passphrase_in.puts(CONFIG['offsite']['encryption-key'])
       passphrase_in.close
+      gpg = CONFIG['local']['executables']['gpg']
       gpg_cmd =
-        'gpg --batch --symmetric --compress-algo none --cipher-algo AES256 ' +
+        "#{gpg} --batch --symmetric --compress-algo none --cipher-algo AES256 " +
         "--passphrase-file /proc/#{Process.pid}/fd/#{passphrase_out.to_i}"
       cmd = [tar_cmd, pv_cmd, gpg_cmd].compact.join(' | ')
       say "# #{cmd}"

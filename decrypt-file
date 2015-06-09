@@ -32,8 +32,9 @@ pv_cmd = %(pv "#{file_in}")
 IO.pipe do |passphrase_out, passphrase_in|
   passphrase_in.puts(CONFIG['offsite']['encryption-key'])
   passphrase_in.close
+  gpg = CONFIG['local']['executables']['gpg']
   gpg_cmd =
-    'gpg --batch --decrypt ' +
+    "#{gpg} --batch --decrypt " +
     "--passphrase-file /proc/#{Process.pid}/fd/#{passphrase_out.to_i}"
   tar_cmd = %(tar -C "#{File.dirname(file_in)}" -xv)
   cmd = [pv_cmd, gpg_cmd, tar_cmd].join(' | ')

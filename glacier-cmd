@@ -84,8 +84,9 @@ class GlacierCommand
       IO.pipe do |passphrase_out, passphrase_in|
         passphrase_in.puts(CONFIG['offsite']['encryption-key'])
         passphrase_in.close
+        gpg = CONFIG['local']['executables']['gpg']
         gpg_cmd =
-          'gpg --batch --decrypt ' +
+          "#{gpg} --batch --decrypt " +
           "--passphrase-file /proc/#{Process.pid}/fd/#{passphrase_out.to_i}"
         cmd = [pv_cmd, gpg_cmd].join(' | ') + %( > "#{file_path}")
         puts "# #{cmd}"

@@ -8,6 +8,8 @@ local:
   out-dir: './Out'
   default-snapshot-lvcreate-args: -L10G
   use-sudo: false
+  executables:
+    gpg: /usr/bin/gpg2
   rotate:
     dailies: 7
     weeklies: 4
