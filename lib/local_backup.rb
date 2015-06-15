@@ -32,8 +32,12 @@ class VirtualMachineBackup
 
   def time
     if @time.nil?
-      date_dir = File.dirname(completed_backup_dirs.first)
-      @time = DateTime.strptime(date_dir[-10..-1], '%Y-%m-%d')
+      if completed_backup_dirs.empty?
+        @time = Time.now
+      else
+        date_dir = File.dirname(completed_backup_dirs.first)
+        @time = Time.strptime(date_dir[-10..-1], '%Y-%m-%d')
+      end
     end
     @time
   end

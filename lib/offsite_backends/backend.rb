@@ -53,7 +53,7 @@ class Backend
 
   def expiry_date
     days = CONFIG['offsite']['expiry-days']
-    @time - (60 * 60 * 24 * days).round
+    @time.to_time - (60 * 60 * 24 * days).round
   end
 end
 end
