@@ -29,7 +29,7 @@ class VirtualMachine
   end
 
   def disks
-    xml_config.xpath('//disk').map {|disk|
+    xml_config.xpath("//disk[@type='block'][@device='disk']").map {|disk|
       source = disk.at_xpath('source').attributes['dev'].value
       valid_disk?(disk, source) ? source : nil
     }.compact
