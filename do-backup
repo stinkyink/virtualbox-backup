@@ -54,18 +54,22 @@ OptionParser.new {|opts|
   end
 }.parse!
 
-if not Dir.exists?(OUT_DIR)
-  STDERR.puts "ERROR: Output directory does not exist: #{OUT_DIR}"
-  exit!
-end
-
 class Tool
+  include Helpers
+
   def self.run!
+    if not Dir.exists?(OUT_DIR)
+      fail "Output directory does not exist: #{OUT_DIR}"
+    end
+
     virtual_machines = VirtualMachine.find(CONFIG['virtual-machines']['include'])
     @backups = virtual_machines.map {|vm| VirtualMachineBackup.new(vm) }
 
     do_local_backups!    if $options.do_local
     do_offsite_backups!  if $options.do_offsite
+  rescue ProcessingError => e
+    STDERR.puts "ERROR: #{e.message}"
+    exit 1
   end
 
   private
