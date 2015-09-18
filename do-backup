@@ -63,7 +63,7 @@ class Tool
     end
 
     virtual_machines = VirtualMachine.find(CONFIG['virtual-machines']['include'])
-    @backups = virtual_machines.map {|vm| VirtualMachineBackup.new(vm) }
+    @backups = virtual_machines.map {|vm| LocalBackup.new(vm) }
 
     do_local_backups!    if $options.do_local
     do_offsite_backups!  if $options.do_offsite

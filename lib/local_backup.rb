@@ -1,4 +1,4 @@
-class VirtualMachineBackup
+class LocalBackup
   include Helpers
 
   def initialize(vm)
