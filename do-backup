@@ -76,6 +76,7 @@ class Tool
 
   def self.do_local_backups!
     @backups.each(&:do_backup!)
+    consolidate_new_dirs!
     rotate_backups!
   end
 
@@ -151,6 +152,23 @@ class Tool
     end
   rescue Exception => e
     STDERR.puts "ERROR: Failed to rotate backups: #{e.message}"
+  end
+
+  # When backups take place across the day boundary, we can end up with multiple
+  # "new" directories. This method consolidates these into a single directory,
+  # containing the latest backup for each VM.
+  def self.consolidate_new_dirs!
+    new_dirs = Dir.glob(File.join(OUT_DIR, '0-new_*'))
+    date = Time.now.strftime('%Y-%m-%d')
+    target = File.join(OUT_DIR, "0-new_#{date}")
+    new_dirs.sort_by {|x| dir_date(x) }.reverse.each do |dir|
+      next  if dir == target
+      Dir.glob(File.join(dir, '*')).each do |source|
+        next  if Dir.exists?(File.join(target, File.basename(source)))
+        FileUtils.mv(source, target)
+      end
+      FileUtils.rm_rf(dir)
+    end
   end
 
   def self.dir_date(dir)

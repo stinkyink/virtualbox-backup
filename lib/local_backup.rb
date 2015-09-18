@@ -132,7 +132,7 @@ class LocalBackup
   end
 
   def target_dir
-    date = @time.strftime("%Y-%m-%d")
+    date = @time.strftime('%Y-%m-%d')
     File.join(OUT_DIR, "0-new_#{date}", @vm.name)
   end
 
