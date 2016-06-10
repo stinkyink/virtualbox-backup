@@ -66,7 +66,7 @@ class LocalBackup
       lv = lv_from_device_path(disk)
       if lv.nil?
         STDERR.puts "WARNING: Ignoring disk #{disk} as path format is " +
-                    "unexpected. Expected LVM block device, like /dev/vg/lg."
+                    "unexpected. Expected LVM block device, like /dev/vg/lv."
         next
       end
       snapshot_lv = create_snapshot_of(lv)
