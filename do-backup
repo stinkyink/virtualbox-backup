@@ -161,6 +161,7 @@ class Tool
     new_dirs = Dir.glob(File.join(OUT_DIR, '0-new_*'))
     date = Time.now.strftime('%Y-%m-%d')
     target = File.join(OUT_DIR, "0-new_#{date}")
+    FileUtils.mkdir_p(target)
     new_dirs.sort_by {|x| dir_date(x) }.reverse.each do |dir|
       next  if dir == target
       Dir.glob(File.join(dir, '*')).each do |source|
