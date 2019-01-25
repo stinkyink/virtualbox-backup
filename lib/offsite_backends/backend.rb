@@ -1,3 +1,6 @@
+require 'bigdecimal'
+require 'tempfile'
+
 module OffsiteBackends
 class Backend
   include Helpers
@@ -31,14 +34,16 @@ class Backend
         "--passphrase-file /proc/#{Process.pid}/fd/#{passphrase_out.to_i}"
       cmd = [tar_cmd, pv_cmd, gpg_cmd].compact.join(' | ')
       say "# #{cmd}"
-      IO.pipe do |data_out, data_in|
-        pid = Process.spawn(cmd, out: data_in)
-        data_in.close
-        yield(data_out)
+      temp_dir = CONFIG['offsite']['temp-dir']
+      Tempfile.open(@description, temp_dir) do |temp_file_io|
+        pid = Process.spawn(cmd, out: temp_file_io)
         Process.wait(pid)
         if $?.exitstatus != 0
           fail 'Failed to read backup data to push offsite'
         end
+        gigs = (BigDecimal.new(temp_file_io.size) / 1024 / 1024 / 1024).round(2).to_f
+        say "# Sending #{gigs}G file to AWS S3"
+        yield(temp_file_io)
       end
     end
   end

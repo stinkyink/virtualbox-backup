@@ -3,10 +3,11 @@
 require 'csv'
 require 'fileutils'
 require 'optparse'
+require 'ostruct'
 require 'tmpdir'
 
 require 'bundler/setup'
-require 'fog'
+require 'fog-aws'
 
 trap :INT, :EXIT
 

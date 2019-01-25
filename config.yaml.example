@@ -19,6 +19,7 @@ offsite:
   backend: glacier  # or s3
   encryption-key: XXXX
   expiry-days: 0.9
+  temp-dir: './Out'  # Remove for /tmp
 aws:
   access-key: XXXX
   secret-key: XXXX

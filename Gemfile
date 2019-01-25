@@ -1,4 +1,4 @@
 source 'http://rubygems.org'
 
-gem 'fog'
+gem 'fog-aws'
 gem 'nokogiri'

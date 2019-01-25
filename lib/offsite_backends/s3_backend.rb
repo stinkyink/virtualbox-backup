@@ -23,9 +23,6 @@ class S3Backend < Backend
   private
 
   def push_io_into_s3_file(io_in)
-    # patch io so that #pos= is a null-op, as Excon attempts to call it
-    def io_in.rewind
-    end
     s3_bucket().files.
       create(key: @description,
              body: io_in,
@@ -33,7 +30,7 @@ class S3Backend < Backend
   end
 
   def s3_bucket
-    s3 = Fog::Storage::AWS.new({
+    s3 = Fog::AWS::Storage.new({
       aws_access_key_id: CONFIG['aws']['access-key'],
       aws_secret_access_key: CONFIG['aws']['secret-key'],
       region: CONFIG['aws']['region']
