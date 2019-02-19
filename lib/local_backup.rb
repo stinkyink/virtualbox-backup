@@ -82,7 +82,7 @@ class LocalBackup
 
   def backup_block_device(block_device, out_path)
     FileUtils.mkdir_p(File.dirname(out_path))
-    cmd = %(#{SUDO} dd if=#{block_device} bs=1M 2> /dev/null).lstrip
+    cmd = %(#{SUDO} dd if=#{block_device} bs=1M conv=sparse 2> /dev/null).lstrip
     unless $options.quiet
       size = `#{SUDO} blockdev --getsize64 #{block_device}`.chomp
       cmd << %( | pv -s #{size} -B 1m)
